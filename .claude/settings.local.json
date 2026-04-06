@@ -20,7 +20,21 @@
       "Bash(find 'C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb' -maxdepth 1 -name Dockerfile* -o -name docker-compose*)",
       "Bash(git:*)",
       "Bash(npm test:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(find 'C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server' -type f -name *.js -o -name *.json)",
+      "Bash(find 'C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server/src' -type f \\\\\\(-name *.js -o -name *.json \\\\\\))",
+      "Bash(find 'C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server/src/components' -name *.json)",
+      "Bash(find 'C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server/src/api' -path */content-types/*/schema.json -type f)",
+      "Bash(sqlite3:*)",
+      "Bash(DB=\"C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server/.tmp/data.db\")",
+      "Bash(/c/Users/Admin/AppData/Local/Android/Sdk/platform-tools/sqlite3 \"$DB\" \"SELECT * FROM i18n_locale;\")",
+      "Bash(./sqlite3 \"C:/stuff/sgu stuff/DACN/DACN_TourGuideWeb/Travel_TVB_Server/.tmp/data.db\" \"SELECT * FROM about_core_values;\")",
+      "Bash(/c/Users/Admin/AppData/Local/Android/Sdk/platform-tools/sqlite3 \"$DB\":*)",
+      "Bash(./sqlite3 \"C:/stuff/sgu:*)",
+      "Bash(ls:*)",
+      "Bash(find 'C:\\\\stuff\\\\sgu stuff\\\\DACN\\\\DACN_TourGuideWeb\\\\Travel_TVB_Server/src/components' -type f -name *.json)",
+      "Bash(grep -r \"locale\\\\|i18n\" 'C:\\\\stuff\\\\sgu stuff\\\\DACN\\\\DACN_TourGuideWeb\\\\Travel_TVB_Server\\\\src' --include=*.js)",
+      "Bash(node migrate-strapi-locales.mjs)"
     ]
   }
 }
