@@ -18,7 +18,7 @@ const displayData = {
     pageTitle: 'Tour Du Lịch',
     pageSubtitle: 'Khám phá những hành trình tuyệt vời nhất Việt Nam.',
     allCategories: 'Tất cả',
-    searchPlaceholder: 'Tìm tour...',
+    searchPlaceholder: 'Tìm tour..',
     sortLabel: 'Sắp xếp:',
     sortDefault: 'Mới nhất',
     sortPriceLow: 'Giá tăng dần',
