@@ -15,7 +15,7 @@ const SearchIcon = () => (
 
 const displayData = {
   vi: {
-    pageTitle: 'Tour Du XDDDDDDDDDDDD',
+    pageTitle: 'Tour Du Lịch',
     pageSubtitle: 'Khám phá những hành trình tuyệt vời nhất Việt Nam',
     allCategories: 'Tất cả',
     searchPlaceholder: 'Tìm tour...',
