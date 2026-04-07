@@ -73,7 +73,6 @@
 }
 
 .price-slider-thumb--right {
-  z-index: 4;
   transform: translateX(-50%);
 }
 
