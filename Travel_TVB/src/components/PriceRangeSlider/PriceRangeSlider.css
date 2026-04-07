@@ -69,6 +69,12 @@
 
 .price-slider-thumb--left {
   z-index: 4;
+  transform: translateX(-50%);
+}
+
+.price-slider-thumb--right {
+  z-index: 4;
+  transform: translateX(-50%);
 }
 
 .price-slider-track {
