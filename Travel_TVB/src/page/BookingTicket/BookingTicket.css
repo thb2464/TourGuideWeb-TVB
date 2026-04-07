@@ -238,8 +238,18 @@
 
 /* Print styles */
 @media print {
-  .no-print {
+  .no-print,
+  .navbar,
+  .site-footer,
+  .newsletter-section,
+  .chatbot-toggle-btn,
+  .chatbot-panel {
     display: none !important;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
   }
 
   .ticket-page {
