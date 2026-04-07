@@ -3,3 +3,9 @@ CLAUDE.md
 Translations.md
 FunctionalReg.md
 migrate-strapi-locales.mjs
+
+# Server-specific CD files
+deploy.sh
+deploy.log
+webhook.js
+ecosystem.config.cjs
