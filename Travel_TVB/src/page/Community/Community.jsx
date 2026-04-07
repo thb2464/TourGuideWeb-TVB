@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import CommunityHeader from '../../components/CommunityHeader/CommunityHeader';
 import CommunityPostArchive from '../../components/CommunityPostArchive/CommunityPostArchive';
-import CtaBanner from '../../components/Layout/CtaBanner/CtaBanner';
+
 // Assuming other components might be added later
 // import NewsGrid from '../../components/NewsGrid/NewsGrid'; 
 // import Pagination from '../../components/Pagination/Pagination';
@@ -33,7 +33,6 @@ const Community = () => {
       >
         <CommunityHeader />
         <CommunityPostArchive />
-        <CtaBanner />
       </motion.div>
     </div>
   );
