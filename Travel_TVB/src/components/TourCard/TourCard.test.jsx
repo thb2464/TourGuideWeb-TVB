@@ -3,16 +3,6 @@ import { screen } from '@testing-library/react';
 import { renderWithRouter } from '../../test/test-utils';
 import TourCard from './TourCard';
 
-// Mock useLanguage to control language
-vi.mock('../../context/LanguageContext', () => ({
-  useLanguage: vi.fn(() => ({
-    currentLanguage: { code: 'en', name: 'English', flag: '🇺🇸' },
-  })),
-  LanguageProvider: ({ children }) => children,
-}));
-
-const { useLanguage } = await import('../../context/LanguageContext');
-
 const mockTour = {
   id: 1,
   slug: 'ha-long-bay',
@@ -25,18 +15,11 @@ const mockTour = {
   Review_Count: 120,
   Price: '5000000',
   Original_Price: null,
-  Region: 'MienBac',
   featuredImageUrl: 'https://example.com/halong.jpg',
   categoryName: 'Adventure',
 };
 
 describe('TourCard', () => {
-  beforeEach(() => {
-    useLanguage.mockReturnValue({
-      currentLanguage: { code: 'en', name: 'English', flag: '🇺🇸' },
-    });
-  });
-
   describe('rendering', () => {
     it('should render tour name', () => {
       renderWithRouter(<TourCard tour={mockTour} />);
@@ -105,26 +88,19 @@ describe('TourCard', () => {
     });
   });
 
-  describe('region labels', () => {
-    it('should display English region label for MienBac', () => {
+  describe('category badge', () => {
+    it('should display category name on the card image', () => {
       renderWithRouter(<TourCard tour={mockTour} />);
-      expect(screen.getByText('Northern')).toBeInTheDocument();
+      const badge = document.querySelector('.tour-card-region');
+      expect(badge).toBeInTheDocument();
+      expect(badge.textContent).toBe('Adventure');
     });
 
-    it('should display Vietnamese region label when language is vi', () => {
-      useLanguage.mockReturnValue({
-        currentLanguage: { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' },
-      });
-      renderWithRouter(<TourCard tour={mockTour} />);
-      expect(screen.getByText('Mien Bac')).toBeInTheDocument();
-    });
-
-    it('should display Chinese region label when language is zh', () => {
-      useLanguage.mockReturnValue({
-        currentLanguage: { code: 'zh', name: '中文', flag: '🇨🇳' },
-      });
-      renderWithRouter(<TourCard tour={mockTour} />);
-      expect(screen.getByText('北部')).toBeInTheDocument();
+    it('should not render category badge when categoryName is empty', () => {
+      const noCategoryTour = { ...mockTour, categoryName: '' };
+      renderWithRouter(<TourCard tour={noCategoryTour} />);
+      const badge = document.querySelector('.tour-card-region');
+      expect(badge).not.toBeInTheDocument();
     });
   });
 

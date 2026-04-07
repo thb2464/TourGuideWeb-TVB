@@ -6,39 +6,33 @@ import config from '../../config/strapi';
 import BookingForm from '../../components/BookingForm/BookingForm';
 import './TourDetail.css';
 
-const regionLabels = {
-  vi: { MienBac: 'Mien Bac', MienTrung: 'Mien Trung', MienNam: 'Mien Nam', TayNguyen: 'Tay Nguyen', NhieuVung: 'Nhieu Vung' },
-  en: { MienBac: 'Northern', MienTrung: 'Central', MienNam: 'Southern', TayNguyen: 'Central Highlands', NhieuVung: 'Multi-Region' },
-  zh: { MienBac: '北部', MienTrung: '中部', MienNam: '南部', TayNguyen: '中央高地', NhieuVung: '多地区' },
-};
-
 const transportLabels = {
-  vi: { XeKhach: 'Xe khach', MayBay: 'May bay', Tau: 'Tau', XeMay: 'Xe may', KetHop: 'Ket hop' },
+  vi: { XeKhach: 'Xe khách', MayBay: 'Máy bay', Tau: 'Tàu', XeMay: 'Xe máy', KetHop: 'Kết hợp' },
   en: { XeKhach: 'Coach Bus', MayBay: 'Airplane', Tau: 'Train/Boat', XeMay: 'Motorbike', KetHop: 'Combined' },
   zh: { XeKhach: '大巴', MayBay: '飞机', Tau: '火车/船', XeMay: '摩托车', KetHop: '综合' },
 };
 
 const displayData = {
   vi: {
-    highlights: 'Diem noi bat',
-    description: 'Mo ta tour',
-    itinerary: 'Lich trinh',
-    gallery: 'Hinh anh',
-    duration: 'Thoi gian',
-    days: 'ngay',
-    nights: 'dem',
-    departure: 'Khoi hanh tu',
-    transport: 'Phuong tien',
-    maxParticipants: 'So nguoi toi da',
-    people: 'nguoi',
-    rating: 'Danh gia',
-    reviews: 'danh gia',
-    bookNow: 'Dat Tour Ngay',
-    contactUs: 'Lien He Tu Van',
-    backToTours: 'Quay lai danh sach tour',
-    loading: 'Dang tai thong tin tour...',
-    notFound: 'Khong tim thay tour.',
-    fromPrice: 'Gia tu',
+    highlights: 'Điểm nổi bật',
+    description: 'Mô tả tour',
+    itinerary: 'Lịch trình',
+    gallery: 'Hình ảnh',
+    duration: 'Thời gian',
+    days: 'ngày',
+    nights: 'đêm',
+    departure: 'Khởi hành từ',
+    transport: 'Phương tiện',
+    maxParticipants: 'Số người tối đa',
+    people: 'người',
+    rating: 'Đánh giá',
+    reviews: 'đánh giá',
+    bookNow: 'Đặt Tour Ngay',
+    contactUs: 'Liên Hệ Tư Vấn',
+    backToTours: 'Quay lại danh sách tour',
+    loading: 'Đang tải thông tin tour...',
+    notFound: 'Không tìm thấy tour.',
+    fromPrice: 'Giá từ',
   },
   en: {
     highlights: 'Highlights',
@@ -166,7 +160,6 @@ const TourDetail = () => {
   const { currentLanguage } = useLanguage();
   const TEXT = displayData[currentLanguage.code] || displayData.en;
   const langCode = currentLanguage.code;
-  const regions = regionLabels[langCode] || regionLabels.en;
   const transports = transportLabels[langCode] || transportLabels.en;
 
   const [tour, setTour] = useState(null);
@@ -267,7 +260,6 @@ const TourDetail = () => {
               <h1 className="tour-detail-title">{tour.Tour_Name}</h1>
               <div className="tour-detail-hero-meta">
                 <span>{tour.Duration_Days}{TEXT.days} {tour.Duration_Nights}{TEXT.nights}</span>
-                <span>{regions[tour.Region] || tour.Region}</span>
                 <span>{tour.Location}</span>
               </div>
             </div>
@@ -336,7 +328,7 @@ const TourDetail = () => {
                   <span className="tour-sidebar-original-price">{formatPrice(tour.Original_Price)}</span>
                 )}
                 <span className="tour-sidebar-current-price">{formatPrice(tour.Price)}</span>
-                <span className="tour-sidebar-per-person">/ {langCode === 'vi' ? 'nguoi' : langCode === 'zh' ? '人' : 'person'}</span>
+                <span className="tour-sidebar-per-person">/ {langCode === 'vi' ? 'người' : langCode === 'zh' ? '人' : 'person'}</span>
               </div>
 
               {/* Info rows */}

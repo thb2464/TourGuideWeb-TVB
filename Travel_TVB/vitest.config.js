@@ -15,7 +15,6 @@ export default defineConfig({
       exclude: [
         'src/test/**',
         'src/main.jsx',
-        'src/utils/mockData.js',
         'src/assets/**',
       ],
     },
