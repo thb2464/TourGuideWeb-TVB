@@ -1562,6 +1562,35 @@ export interface ApiNewsHeroNewsHero extends Struct.SingleTypeSchema {
   };
 }
 
+export interface ApiNewsletterEmailSubmissonNewsletterEmailSubmisson
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'newsletter_email_submissons';
+  info: {
+    displayName: 'Newsletter Email Submission';
+    pluralName: 'newsletter-email-submissons';
+    singularName: 'newsletter-email-submisson';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::newsletter-email-submisson.newsletter-email-submisson'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    UsersEmail: Schema.Attribute.Email & Schema.Attribute.Required;
+  };
+}
+
 export interface ApiPostCategoryPostCategory
   extends Struct.CollectionTypeSchema {
   collectionName: 'post_categories';
@@ -2615,6 +2644,7 @@ declare module '@strapi/strapi' {
       'api::layout-navbar.layout-navbar': ApiLayoutNavbarLayoutNavbar;
       'api::layout-newsletter.layout-newsletter': ApiLayoutNewsletterLayoutNewsletter;
       'api::news-hero.news-hero': ApiNewsHeroNewsHero;
+      'api::newsletter-email-submisson.newsletter-email-submisson': ApiNewsletterEmailSubmissonNewsletterEmailSubmisson;
       'api::post-category.post-category': ApiPostCategoryPostCategory;
       'api::service-hero.service-hero': ApiServiceHeroServiceHero;
       'api::single-community-post.single-community-post': ApiSingleCommunityPostSingleCommunityPost;
