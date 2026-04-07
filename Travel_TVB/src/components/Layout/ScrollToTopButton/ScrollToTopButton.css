@@ -29,6 +29,8 @@
 
 /* Final State (Visible) */
 .scroll-btn.visible {
+  margin-right: 10px;
+  bottom:12%;
   opacity: 1;
   transform: scale(1) rotate(0deg); /* Grow and un-rotate */
   visibility: visible;
