@@ -15,36 +15,26 @@ const SearchIcon = () => (
 
 const displayData = {
   vi: {
-    pageTitle: 'Tour Du Lich',
-    pageSubtitle: 'Kham pha nhung hanh trinh tuyet voi nhat Viet Nam',
-    allRegions: 'Tat ca',
-    mienBac: 'Mien Bac',
-    mienTrung: 'Mien Trung',
-    mienNam: 'Mien Nam',
-    tayNguyen: 'Tay Nguyen',
-    nhieuVung: 'Nhieu Vung',
-    searchPlaceholder: 'Tim tour...',
-    sortLabel: 'Sap xep:',
-    sortDefault: 'Moi nhat',
-    sortPriceLow: 'Gia tang dan',
-    sortPriceHigh: 'Gia giam dan',
-    sortRating: 'Danh gia cao',
-    priceRange: 'Khoang gia',
-    loading: 'Dang tai tour...',
-    noTours: 'Khong tim thay tour nao.',
-    error: 'Khong the tai tour.',
-    prevButton: 'TRUOC',
-    nextButton: 'TIEP',
+    pageTitle: 'Tour Du Lịch',
+    pageSubtitle: 'Khám phá những hành trình tuyệt vời nhất Việt Nam',
+    allCategories: 'Tất cả',
+    searchPlaceholder: 'Tìm tour...',
+    sortLabel: 'Sắp xếp:',
+    sortDefault: 'Mới nhất',
+    sortPriceLow: 'Giá tăng dần',
+    sortPriceHigh: 'Giá giảm dần',
+    sortRating: 'Đánh giá cao',
+    priceRange: 'Khoảng giá',
+    loading: 'Đang tải tour...',
+    noTours: 'Không tìm thấy tour nào.',
+    error: 'Không thể tải tour.',
+    prevButton: 'TRƯỚC',
+    nextButton: 'TIẾP',
   },
   en: {
     pageTitle: 'Tours',
     pageSubtitle: 'Discover the most amazing journeys across Vietnam',
-    allRegions: 'All',
-    mienBac: 'Northern',
-    mienTrung: 'Central',
-    mienNam: 'Southern',
-    tayNguyen: 'Highlands',
-    nhieuVung: 'Multi-Region',
+    allCategories: 'All',
     searchPlaceholder: 'Search tours...',
     sortLabel: 'Sort by:',
     sortDefault: 'Newest',
@@ -61,12 +51,7 @@ const displayData = {
   zh: {
     pageTitle: '旅游线路',
     pageSubtitle: '探索越南最精彩的旅程',
-    allRegions: '全部',
-    mienBac: '北部',
-    mienTrung: '中部',
-    mienNam: '南部',
-    tayNguyen: '中央高地',
-    nhieuVung: '多地区',
+    allCategories: '全部',
     searchPlaceholder: '搜索旅游...',
     sortLabel: '排序:',
     sortDefault: '最新',
@@ -105,20 +90,42 @@ const Tours = () => {
   const [tours, setTours] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeRegion, setActiveRegion] = useState('all');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [categories, setCategories] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageCount: 1 });
   const [inputValue, setInputValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortValue, setSortValue] = useState('createdAt:desc');
   const [priceRange, setPriceRange] = useState([0, 50000000]);
 
-  const regionTabs = [
-    { key: 'all', label: TEXT.allRegions },
-    { key: 'MienBac', label: TEXT.mienBac },
-    { key: 'MienTrung', label: TEXT.mienTrung },
-    { key: 'MienNam', label: TEXT.mienNam },
-    { key: 'TayNguyen', label: TEXT.tayNguyen },
-    { key: 'NhieuVung', label: TEXT.nhieuVung },
+  // Fetch tour categories dynamically
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const localeQuery = `locale=${currentLanguage.code}`;
+        const apiUrl = `${config.STRAPI_URL}${config.API_ENDPOINTS.TOUR_CATEGORIES}?${localeQuery}`;
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error(`API error! Status: ${response.status}`);
+        const json = await response.json();
+        const categoryList = (json.data || [])
+          .filter(cat => cat.Category_Name)
+          .map(cat => ({
+            id: cat.id,
+            name: cat.Category_Name,
+            slug: cat.Category_Slug || cat.Category_Name.toLowerCase().replace(/\s+/g, '-'),
+          }));
+        setCategories(categoryList);
+      } catch (err) {
+        console.error('Failed to fetch tour categories:', err);
+      }
+    };
+
+    fetchCategories();
+  }, [currentLanguage]);
+
+  const categoryTabs = [
+    { key: 'all', label: TEXT.allCategories },
+    ...categories.map(cat => ({ key: String(cat.id), slug: cat.slug, label: cat.name })),
   ];
 
   useEffect(() => {
@@ -132,8 +139,8 @@ const Tours = () => {
       const localeQuery = `locale=${currentLanguage.code}`;
 
       let filterQuery = '';
-      if (activeRegion !== 'all') {
-        filterQuery += `&filters[Region][$eq]=${activeRegion}`;
+      if (activeCategory !== 'all') {
+        filterQuery += `&filters[tour_category][id][$eq]=${activeCategory}`;
       }
       if (searchTerm) {
         filterQuery += `&filters[Tour_Name][$containsi]=${encodeURIComponent(searchTerm)}`;
@@ -154,9 +161,10 @@ const Tours = () => {
 
         let tourList = json.data || [];
 
-        // Client-side filtering (for mock data fallback which ignores query params)
-        if (activeRegion !== 'all') {
-          tourList = tourList.filter(t => t.Region === activeRegion);
+        // Client-side filtering (fallback for when server ignores query params)
+        if (activeCategory !== 'all') {
+          const catId = parseInt(activeCategory);
+          tourList = tourList.filter(t => t.tour_category?.id === catId);
         }
         if (searchTerm) {
           const term = searchTerm.toLowerCase();
@@ -201,10 +209,10 @@ const Tours = () => {
     };
 
     fetchTours();
-  }, [activeRegion, searchTerm, pagination.page, sortValue, priceRange, currentLanguage]);
+  }, [activeCategory, searchTerm, pagination.page, sortValue, priceRange, currentLanguage]);
 
-  const handleRegionClick = (region) => {
-    setActiveRegion(region);
+  const handleCategoryClick = (categorySlug) => {
+    setActiveCategory(categorySlug);
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -244,11 +252,11 @@ const Tours = () => {
       <div className="tours-container">
         <div className="tours-controls">
           <div className="tours-tabs">
-            {regionTabs.map(tab => (
+            {categoryTabs.map(tab => (
               <button
                 key={tab.key}
-                className={`tours-tab-btn ${activeRegion === tab.key ? 'active' : ''}`}
-                onClick={() => handleRegionClick(tab.key)}
+                className={`tours-tab-btn ${activeCategory === tab.key ? 'active' : ''}`}
+                onClick={() => handleCategoryClick(tab.key)}
               >
                 {tab.label}
               </button>

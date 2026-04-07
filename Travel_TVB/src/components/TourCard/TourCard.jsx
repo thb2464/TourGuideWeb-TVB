@@ -1,19 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useLanguage } from '../../context/LanguageContext';
 import './TourCard.css';
-
-const regionLabels = {
-  vi: { MienBac: 'Mien Bac', MienTrung: 'Mien Trung', MienNam: 'Mien Nam', TayNguyen: 'Tay Nguyen', NhieuVung: 'Nhieu Vung' },
-  en: { MienBac: 'Northern', MienTrung: 'Central', MienNam: 'Southern', TayNguyen: 'Central Highlands', NhieuVung: 'Multi-Region' },
-  zh: { MienBac: '北部', MienTrung: '中部', MienNam: '南部', TayNguyen: '中央高地', NhieuVung: '多地区' },
-};
-
-const transportLabels = {
-  vi: { XeKhach: 'Xe khach', MayBay: 'May bay', Tau: 'Tau', XeMay: 'Xe may', KetHop: 'Ket hop' },
-  en: { XeKhach: 'Coach', MayBay: 'Flight', Tau: 'Train/Boat', XeMay: 'Motorbike', KetHop: 'Combined' },
-  zh: { XeKhach: '大巴', MayBay: '飞机', Tau: '火车/船', XeMay: '摩托车', KetHop: '综合' },
-};
 
 const formatPrice = (price) => {
   if (!price) return '';
@@ -41,10 +28,6 @@ const ClockIcon = () => (
 );
 
 const TourCard = ({ tour }) => {
-  const { currentLanguage } = useLanguage();
-  const langCode = currentLanguage.code;
-  const regions = regionLabels[langCode] || regionLabels.en;
-
   const hasDiscount = tour.Original_Price && parseInt(tour.Original_Price) > parseInt(tour.Price);
 
   return (
@@ -52,12 +35,11 @@ const TourCard = ({ tour }) => {
       <div className="tour-card-image">
         <img src={tour.featuredImageUrl} alt={tour.Tour_Name} loading="lazy" />
         {hasDiscount && <span className="tour-card-badge">SALE</span>}
-        <span className="tour-card-region">{regions[tour.Region] || tour.Region}</span>
+        {tour.categoryName && (
+          <span className="tour-card-region">{tour.categoryName}</span>
+        )}
       </div>
       <div className="tour-card-content">
-        {tour.categoryName && (
-          <span className="tour-card-category">{tour.categoryName}</span>
-        )}
         <h3 className="tour-card-title">{tour.Tour_Name}</h3>
         <p className="tour-card-description">{tour.Short_Description}</p>
         <div className="tour-card-info">

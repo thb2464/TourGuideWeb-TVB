@@ -27,8 +27,24 @@ vi.mock('../../components/PriceRangeSlider/PriceRangeSlider', () => ({
 }));
 
 describe('Tours page', () => {
+  const mockCategories = {
+    data: [
+      { id: 1, Category_Name: 'Adventure', Category_Slug: 'adventure' },
+      { id: 2, Category_Name: 'Nature', Category_Slug: 'nature' },
+    ],
+  };
+
   beforeEach(() => {
-    global.fetch = vi.fn();
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/api/tour-categories')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCategories),
+        });
+      }
+      // Default: return a pending promise (for tests that override tours fetch)
+      return new Promise(() => {});
+    });
   });
 
   afterEach(() => {
@@ -36,23 +52,30 @@ describe('Tours page', () => {
   });
 
   it('should show loading state initially', () => {
-    global.fetch.mockReturnValue(new Promise(() => {})); // Never resolves
     renderWithRouter(<Tours />);
     expect(screen.getByText('Loading tours...')).toBeInTheDocument();
   });
 
   it('should render tour cards after successful fetch', async () => {
     const mockTours = [
-      { id: 1, Tour_Name: 'Ha Long Bay', Price: '5000000', Region: 'MienBac', slug: 'ha-long', Rating: 4.5, Review_Count: 10 },
-      { id: 2, Tour_Name: 'Da Lat', Price: '3000000', Region: 'TayNguyen', slug: 'da-lat', Rating: 4.2, Review_Count: 5 },
+      { id: 1, Tour_Name: 'Ha Long Bay', Price: '5000000', slug: 'ha-long', Rating: 4.5, Review_Count: 10, tour_category: { Category_Name: 'Adventure', Category_Slug: 'adventure' } },
+      { id: 2, Tour_Name: 'Da Lat', Price: '3000000', slug: 'da-lat', Rating: 4.2, Review_Count: 5, tour_category: { Category_Name: 'Nature', Category_Slug: 'nature' } },
     ];
 
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        data: mockTours,
-        meta: { pagination: { page: 1, pageCount: 1, pageSize: 9, total: 2 } },
-      }),
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/api/tour-categories')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCategories),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: mockTours,
+          meta: { pagination: { page: 1, pageCount: 1, pageSize: 9, total: 2 } },
+        }),
+      });
     });
 
     renderWithRouter(<Tours />);
@@ -67,12 +90,20 @@ describe('Tours page', () => {
   });
 
   it('should show "No tours found" for empty results', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        data: [],
-        meta: { pagination: { page: 1, pageCount: 0, pageSize: 9, total: 0 } },
-      }),
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/api/tour-categories')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCategories),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          data: [],
+          meta: { pagination: { page: 1, pageCount: 0, pageSize: 9, total: 0 } },
+        }),
+      });
     });
 
     renderWithRouter(<Tours />);
@@ -83,7 +114,15 @@ describe('Tours page', () => {
   });
 
   it('should show error message on fetch failure', async () => {
-    global.fetch.mockRejectedValue(new Error('Network error'));
+    global.fetch = vi.fn((url) => {
+      if (url.includes('/api/tour-categories')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCategories),
+        });
+      }
+      return Promise.reject(new Error('Network error'));
+    });
 
     renderWithRouter(<Tours />);
 

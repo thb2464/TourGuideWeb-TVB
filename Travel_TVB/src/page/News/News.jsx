@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import NewsHeader from '../../components/NewsHeader/NewsHeader';
 import NewsPostArchive from '../../components/NewsPostArchive/NewsPostArchive';
-import CtaBanner from '../../components/Layout/CtaBanner/CtaBanner';
+
 
 
 const pageVariants = {
@@ -30,7 +30,6 @@ const News = () => {
       >
         <NewsHeader />
         <NewsPostArchive />
-        <CtaBanner />
       </motion.div>
     </div>
   );
