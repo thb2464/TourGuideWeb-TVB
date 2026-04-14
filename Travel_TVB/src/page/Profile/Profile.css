@@ -185,6 +185,51 @@
   color: #e74c3c;
 }
 
+.profile-order-refund {
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+.profile-refund-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.profile-refund-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.refund-refunded {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.refund-not_charged {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.refund-pending_manual {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
+.refund-refund_failed {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.profile-refund-none {
+  font-size: 0.8rem;
+  color: #888;
+}
+
 .profile-order-status {
   font-size: 0.8rem;
   font-weight: 600;
@@ -213,9 +258,11 @@
   color: #757575;
 }
 
-.profile-order-ticket {
+/* Action buttons */
+.profile-order-actions {
   display: flex;
   align-items: flex-end;
+  gap: 0.5rem;
   margin-left: auto;
 }
 
@@ -234,6 +281,49 @@
   background: #16213e;
 }
 
+.profile-cancel-btn {
+  padding: 0.4rem 1rem;
+  background: #fff;
+  color: #dc3545;
+  border: 1.5px solid #dc3545;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.profile-cancel-btn:hover {
+  background: #dc3545;
+  color: #fff;
+}
+
+.profile-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-retry-btn {
+  padding: 0.4rem 1rem;
+  background: #4a90d9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.profile-retry-btn:hover {
+  background: #357abd;
+}
+
+.profile-retry-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @media (max-width: 480px) {
   .profile-container,
   .profile-orders-container {
@@ -249,5 +339,12 @@
   .profile-order-details {
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .profile-order-actions {
+    flex-direction: column;
+    align-items: stretch;
+    margin-left: 0;
+    width: 100%;
   }
 }

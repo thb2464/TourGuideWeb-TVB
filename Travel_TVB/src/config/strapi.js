@@ -45,6 +45,7 @@ const config = {
     BOOKINGS: '/api/bookings',
     BOOKING_CREATE_PAYMENT: '/api/bookings/create-payment-url',
     BOOKING_MY_BOOKINGS: '/api/bookings/my-bookings',
+    BOOKING_AVAILABILITY: '/api/bookings/availability',
 
     // Chatbot endpoint
     CHATBOT_QUERY: '/api/chatbot/query',

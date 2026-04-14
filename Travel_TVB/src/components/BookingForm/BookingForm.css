@@ -70,8 +70,16 @@
   justify-content: center;
 }
 
-.booking-stepper button:hover {
+.booking-stepper button:hover:not(:disabled) {
   background: #e9ecef;
+}
+
+/* Fix 2: Disabled stepper button */
+.booking-stepper button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: #f0f0f0;
+  color: #aaa;
 }
 
 .booking-stepper span {
@@ -106,6 +114,40 @@
 
 .booking-field input:focus {
   border-color: #4a90d9;
+}
+
+/* Fix 1: Availability display */
+.booking-availability {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.booking-checking {
+  color: #888;
+}
+
+.booking-spots-left {
+  color: #2e7d32;
+}
+
+.booking-no-spots {
+  color: #c62828;
+}
+
+/* Fix 7: Sold-out state */
+.booking-sold-out {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #fafafa;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+}
+
+.booking-sold-out-text {
+  font-size: 0.9rem;
+  color: #888;
+  margin: 0;
 }
 
 .booking-total {

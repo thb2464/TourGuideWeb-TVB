@@ -93,7 +93,7 @@ const PaymentReturn = () => {
               </>
             ) : (
               <>
-                <Link to="/tours" className="payment-return-btn primary">{TEXT.tryAgain}</Link>
+                <Link to="/profile" className="payment-return-btn primary">{TEXT.tryAgain}</Link>
                 <Link to="/tours" className="payment-return-btn secondary">{TEXT.backToTours}</Link>
               </>
             )}

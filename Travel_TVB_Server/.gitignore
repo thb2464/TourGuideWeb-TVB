@@ -126,3 +126,9 @@ dist
 build
 .strapi-updater.json
 .strapi-cloud.json
+
+############################
+# Local debug scripts
+############################
+
+scripts/

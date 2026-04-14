@@ -65,6 +65,16 @@
     "contact_phone": {
       "type": "string",
       "required": true
+    },
+    "refund_amount": {
+      "type": "biginteger",
+      "default": "0"
+    },
+    "cancelled_at": {
+      "type": "datetime"
+    },
+    "refund_status": {
+      "type": "string"
     }
   }
 }

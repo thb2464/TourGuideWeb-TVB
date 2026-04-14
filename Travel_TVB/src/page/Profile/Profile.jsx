@@ -29,6 +29,17 @@ const displayData = {
     statusCancelled: 'Da huy',
     viewTicket: 'Xem Ve',
     loadingOrders: 'Dang tai...',
+    cancelBtn: 'Huy Dat Tour',
+    cancelConfirm: 'Ban co chac muon huy dat tour nay khong?\n\nChinh sach hoan tien:\n- Trong 24h: hoan 100%\n- Trong 72h: hoan 85%\n- Sau 72h: khong hoan tien',
+    cancelling: 'Dang huy...',
+    refundAmount: 'Hoan tien',
+    refundRefunded: 'Da hoan tien',
+    refundPending: 'Cho xu ly hoan tien',
+    refundFailed: 'Hoan tien that bai',
+    refundNotCharged: 'Chua thanh toan',
+    refundNone: 'Khong hoan tien',
+    retryPayment: 'Thanh Toan Lai',
+    retrying: 'Dang xu ly...',
   },
   en: {
     title: 'My Profile',
@@ -52,6 +63,17 @@ const displayData = {
     statusCancelled: 'Cancelled',
     viewTicket: 'View Ticket',
     loadingOrders: 'Loading...',
+    cancelBtn: 'Cancel Booking',
+    cancelConfirm: 'Are you sure you want to cancel this booking?\n\nRefund policy:\n- Within 24h: 100% refund\n- Within 72h: 85% refund\n- After 72h: no refund',
+    cancelling: 'Cancelling...',
+    refundAmount: 'Refund',
+    refundRefunded: 'Refunded via VNPay',
+    refundPending: 'Refund pending',
+    refundFailed: 'Refund failed',
+    refundNotCharged: 'Not charged',
+    refundNone: 'No refund',
+    retryPayment: 'Retry Payment',
+    retrying: 'Processing...',
   },
   zh: {
     title: '个人资料',
@@ -75,6 +97,17 @@ const displayData = {
     statusCancelled: '已取消',
     viewTicket: '查看票据',
     loadingOrders: '加载中...',
+    cancelBtn: '取消预订',
+    cancelConfirm: '确定要取消此预订吗？\n\n退款政策：\n- 24小时内：全额退款\n- 72小时内：退款85%\n- 72小时后：不退款',
+    cancelling: '取消中...',
+    refundAmount: '退款',
+    refundRefunded: '已通过VNPay退款',
+    refundPending: '退款处理中',
+    refundFailed: '退款失败',
+    refundNotCharged: '未收费',
+    refundNone: '不退款',
+    retryPayment: '重新支付',
+    retrying: '处理中...',
   },
 };
 
@@ -103,6 +136,8 @@ const Profile = () => {
 
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  const [cancellingId, setCancellingId] = useState(null);
+  const [retryingId, setRetryingId] = useState(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -127,6 +162,59 @@ const Profile = () => {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  // Fix 3: Cancel booking
+  const handleCancel = async (bookingId) => {
+    if (!window.confirm(TEXT.cancelConfirm)) return;
+
+    setCancellingId(bookingId);
+    try {
+      const res = await fetch(`${config.STRAPI_URL}${config.API_ENDPOINTS.BOOKINGS}/${bookingId}/cancel`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setBookings(prev => prev.map(b =>
+          b.id === bookingId
+            ? { ...b, status: 'Cancelled', refund_amount: json.data.refund_amount, refund_status: json.data.refund_status, cancelled_at: json.data.cancelled_at }
+            : b
+        ));
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || 'Cancel failed.');
+      }
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  // Fix 8: Retry payment
+  const handleRetryPayment = async (bookingId) => {
+    setRetryingId(bookingId);
+    try {
+      const res = await fetch(`${config.STRAPI_URL}${config.API_ENDPOINTS.BOOKING_CREATE_PAYMENT}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bookingId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.paymentUrl) {
+        window.location.href = data.paymentUrl;
+      } else {
+        alert(data.error?.message || 'Failed to generate payment URL.');
+      }
+    } catch (err) {
+      console.error('Retry payment failed:', err);
+    } finally {
+      setRetryingId(null);
+    }
   };
 
   if (!user) return null;
@@ -214,13 +302,58 @@ const Profile = () => {
                           {TEXT[statusInfo.key]}
                         </span>
                       </div>
-                      {b.status === 'Paid' && (
-                        <div className="profile-order-detail profile-order-ticket">
+
+                      {/* Fix 3: Refund info for cancelled bookings */}
+                      {b.status === 'Cancelled' && (
+                        <div className="profile-order-detail">
+                          <span className="profile-order-label">{TEXT.refundAmount}</span>
+                          {parseInt(b.refund_amount) > 0 ? (
+                            <div className="profile-refund-info">
+                              <span className="profile-order-refund">{formatPrice(b.refund_amount)}</span>
+                              <span className={`profile-refund-status refund-${b.refund_status || 'pending_manual'}`}>
+                                {b.refund_status === 'refunded' && TEXT.refundRefunded}
+                                {b.refund_status === 'refund_failed' && TEXT.refundFailed}
+                                {b.refund_status === 'not_charged' && TEXT.refundNotCharged}
+                                {b.refund_status === 'pending_manual' && TEXT.refundPending}
+                                {!b.refund_status && TEXT.refundPending}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="profile-refund-none">{TEXT.refundNone}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="profile-order-actions">
+                        {b.status === 'Paid' && (
                           <Link to={`/booking/${b.id}/ticket`} className="profile-ticket-btn">
                             {TEXT.viewTicket}
                           </Link>
-                        </div>
-                      )}
+                        )}
+
+                        {/* Fix 8: Retry payment for failed bookings */}
+                        {b.status === 'Failed' && (
+                          <button
+                            className="profile-retry-btn"
+                            onClick={() => handleRetryPayment(b.id)}
+                            disabled={retryingId === b.id}
+                          >
+                            {retryingId === b.id ? TEXT.retrying : TEXT.retryPayment}
+                          </button>
+                        )}
+
+                        {/* Fix 3: Cancel button for pending/paid bookings */}
+                        {(b.status === 'Pending' || b.status === 'Paid') && (
+                          <button
+                            className="profile-cancel-btn"
+                            onClick={() => handleCancel(b.id)}
+                            disabled={cancellingId === b.id}
+                          >
+                            {cancellingId === b.id ? TEXT.cancelling : TEXT.cancelBtn}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

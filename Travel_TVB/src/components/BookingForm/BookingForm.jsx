@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -22,7 +22,9 @@ const displayData = {
     loginRequired: 'Dang nhap de dat tour',
     loginBtn: 'Dang Nhap',
     spotsLeft: 'cho con lai',
-    noSpots: 'Het cho',
+    noSpots: 'Het cho cho ngay nay',
+    checkingAvailability: 'Dang kiem tra...',
+    soldOutMessage: 'Vui long chon ngay khac.',
     error: 'Loi dat tour',
   },
   en: {
@@ -41,7 +43,9 @@ const displayData = {
     loginRequired: 'Login to book this tour',
     loginBtn: 'Login',
     spotsLeft: 'spots left',
-    noSpots: 'Fully booked',
+    noSpots: 'Fully booked for this date',
+    checkingAvailability: 'Checking...',
+    soldOutMessage: 'Please select a different date.',
     error: 'Booking error',
   },
   zh: {
@@ -60,7 +64,9 @@ const displayData = {
     loginRequired: '登录后预订',
     loginBtn: '登录',
     spotsLeft: '剩余名额',
-    noSpots: '已满',
+    noSpots: '该日期已满',
+    checkingAvailability: '检查中...',
+    soldOutMessage: '请选择其他日期。',
     error: '预订错误',
   },
 };
@@ -84,6 +90,10 @@ const BookingForm = ({ tour }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  // Fix 1: Availability state
+  const [availability, setAvailability] = useState(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+
   const adultPrice = parseInt(tour?.Price) || 0;
   const childPrice = parseInt(tour?.Child_Price) || adultPrice;
   const hasChildPrice = !!tour?.Child_Price;
@@ -97,13 +107,61 @@ const BookingForm = ({ tour }) => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = tomorrow.toISOString().split('T')[0];
 
+  // Fix 2: Dynamic guest cap based on availability
+  const maxGuests = availability ? availability.remaining : 100;
+  const isSoldOut = availability?.isSoldOut === true;
+
+  // Fix 1: Fetch availability when date changes
+  useEffect(() => {
+    if (!travelDate || !tour?.id) {
+      setAvailability(null);
+      return;
+    }
+    const fetchAvailability = async () => {
+      setLoadingAvailability(true);
+      try {
+        const res = await fetch(
+          `${config.STRAPI_URL}${config.API_ENDPOINTS.BOOKING_AVAILABILITY}?tourId=${tour.id}&date=${travelDate}`
+        );
+        if (res.ok) {
+          const json = await res.json();
+          setAvailability(json.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch availability:', err);
+      } finally {
+        setLoadingAvailability(false);
+      }
+    };
+    fetchAvailability();
+  }, [travelDate, tour?.id]);
+
+  // Fix 2: Auto-reduce guests when availability shrinks on date change
+  useEffect(() => {
+    if (availability && !availability.isSoldOut) {
+      const total = adultCount + childCount;
+      if (total > availability.remaining) {
+        const newChild = Math.max(0, Math.min(childCount, availability.remaining - 1));
+        const newAdult = Math.min(adultCount, availability.remaining - newChild);
+        setChildCount(newChild);
+        setAdultCount(Math.max(1, newAdult));
+      }
+    }
+  }, [availability]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
 
+    // Fix 6: Frontend validation guard
+    if (adultCount < 1 || childCount < 0) {
+      setError('Invalid guest count.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
-      // Step 1: Create booking
       const bookingRes = await fetch(`${config.STRAPI_URL}${config.API_ENDPOINTS.BOOKINGS}`, {
         method: 'POST',
         headers: {
@@ -131,7 +189,6 @@ const BookingForm = ({ tour }) => {
       const bookingId = bookingData.data?.id;
       if (!bookingId) throw new Error('No booking ID returned');
 
-      // Step 2: Get VNPay payment URL
       const paymentRes = await fetch(`${config.STRAPI_URL}${config.API_ENDPOINTS.BOOKING_CREATE_PAYMENT}`, {
         method: 'POST',
         headers: {
@@ -146,7 +203,6 @@ const BookingForm = ({ tour }) => {
         throw new Error(paymentData.error?.message || 'Payment URL generation failed');
       }
 
-      // Step 3: Redirect to VNPay
       window.location.href = paymentData.paymentUrl;
     } catch (err) {
       setError(err.message);
@@ -181,56 +237,88 @@ const BookingForm = ({ tour }) => {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="booking-stepper-group">
-          <label>{TEXT.adults}</label>
-          <div className="booking-stepper">
-            <button type="button" onClick={() => setAdultCount(Math.max(1, adultCount - 1))}>-</button>
-            <span>{adultCount}</span>
-            <button type="button" onClick={() => setAdultCount(adultCount + 1)}>+</button>
-          </div>
-        </div>
-
-        {hasChildPrice && (
-          <div className="booking-stepper-group">
-            <label>{TEXT.children}</label>
-            <div className="booking-stepper">
-              <button type="button" onClick={() => setChildCount(Math.max(0, childCount - 1))}>-</button>
-              <span>{childCount}</span>
-              <button type="button" onClick={() => setChildCount(childCount + 1)}>+</button>
-            </div>
-          </div>
-        )}
-
         <div className="booking-field">
           <label>{TEXT.travelDate}</label>
           <input type="date" value={travelDate} onChange={(e) => setTravelDate(e.target.value)} min={minDate} required />
         </div>
 
-        <div className="booking-field">
-          <label>{TEXT.contactName}</label>
-          <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} required />
-        </div>
+        {/* Fix 1: Availability display */}
+        {loadingAvailability && (
+          <div className="booking-availability booking-checking">{TEXT.checkingAvailability}</div>
+        )}
+        {availability && !loadingAvailability && (
+          <div className="booking-availability">
+            {isSoldOut ? (
+              <span className="booking-no-spots">{TEXT.noSpots}</span>
+            ) : (
+              <span className="booking-spots-left">{availability.remaining} {TEXT.spotsLeft}</span>
+            )}
+          </div>
+        )}
 
-        <div className="booking-field">
-          <label>{TEXT.contactEmail}</label>
-          <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} required />
-        </div>
+        {/* Fix 7: Hide form when sold out */}
+        {isSoldOut ? (
+          <div className="booking-sold-out">
+            <p className="booking-sold-out-text">{TEXT.soldOutMessage}</p>
+          </div>
+        ) : (
+          <>
+            <div className="booking-stepper-group">
+              <label>{TEXT.adults}</label>
+              <div className="booking-stepper">
+                <button type="button" onClick={() => setAdultCount(Math.max(1, adultCount - 1))}>-</button>
+                <span>{adultCount}</span>
+                {/* Fix 2+6: Cap at remaining seats, min 1 */}
+                <button
+                  type="button"
+                  onClick={() => setAdultCount(Math.min(adultCount + 1, maxGuests - childCount))}
+                  disabled={adultCount + childCount >= maxGuests}
+                >+</button>
+              </div>
+            </div>
 
-        <div className="booking-field">
-          <label>{TEXT.contactPhone}</label>
-          <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} required />
-        </div>
+            {hasChildPrice && (
+              <div className="booking-stepper-group">
+                <label>{TEXT.children}</label>
+                <div className="booking-stepper">
+                  <button type="button" onClick={() => setChildCount(Math.max(0, childCount - 1))}>-</button>
+                  <span>{childCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setChildCount(Math.min(childCount + 1, maxGuests - adultCount))}
+                    disabled={adultCount + childCount >= maxGuests}
+                  >+</button>
+                </div>
+              </div>
+            )}
 
-        <div className="booking-total">
-          <span>{TEXT.totalPrice}</span>
-          <span className="booking-total-price">{formatPrice(totalPrice)}</span>
-        </div>
+            <div className="booking-field">
+              <label>{TEXT.contactName}</label>
+              <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} required />
+            </div>
 
-        {error && <div className="booking-error">{error}</div>}
+            <div className="booking-field">
+              <label>{TEXT.contactEmail}</label>
+              <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} required />
+            </div>
 
-        <button type="submit" className="booking-submit-btn" disabled={submitting || !travelDate}>
-          {submitting ? TEXT.processing : TEXT.proceedPayment}
-        </button>
+            <div className="booking-field">
+              <label>{TEXT.contactPhone}</label>
+              <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} required />
+            </div>
+
+            <div className="booking-total">
+              <span>{TEXT.totalPrice}</span>
+              <span className="booking-total-price">{formatPrice(totalPrice)}</span>
+            </div>
+
+            {error && <div className="booking-error">{error}</div>}
+
+            <button type="submit" className="booking-submit-btn" disabled={submitting || !travelDate || isSoldOut}>
+              {submitting ? TEXT.processing : TEXT.proceedPayment}
+            </button>
+          </>
+        )}
       </form>
     </div>
   );

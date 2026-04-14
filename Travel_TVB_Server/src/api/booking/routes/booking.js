@@ -1,6 +1,6 @@
 'use strict';
 
-// Custom core routes — avoid :id catching our custom paths
+// Core routes — all locked down. Users access bookings via /my-bookings.
 module.exports = {
   routes: [
     {
