@@ -191,15 +191,27 @@ describe('BookingForm', () => {
     it('should call booking API then payment API on submit', async () => {
       const user = userEvent.setup();
 
-      global.fetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ data: { id: 42 } }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: () => Promise.resolve({ paymentUrl: 'https://vnpay.test/pay' }),
-        });
+      global.fetch.mockImplementation((url) => {
+        if (typeof url === 'string' && url.includes('/api/bookings/availability')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: { remaining: 100, isSoldOut: false } }),
+          });
+        }
+        if (typeof url === 'string' && url.includes('/api/bookings/create-payment-url')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ paymentUrl: 'https://vnpay.test/pay' }),
+          });
+        }
+        if (typeof url === 'string' && url.includes('/api/bookings')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: { id: 42 } }),
+          });
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
+      });
 
       renderWithRouter(<BookingForm tour={mockTour} />);
 
@@ -218,44 +230,60 @@ describe('BookingForm', () => {
       await user.click(submitBtn);
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalled();
+        const calls = global.fetch.mock.calls;
+        expect(calls.some(c => typeof c[0] === 'string' && c[0].includes('/api/bookings/create-payment-url'))).toBe(true);
       });
 
-      // Verify the first API call is to the bookings endpoint
+      // Verify the booking POST call (exclude availability and create-payment-url)
       const bookingCall = global.fetch.mock.calls.find(call =>
-        typeof call[0] === 'string' && call[0].includes('/api/bookings') && !call[0].includes('create-payment')
+        typeof call[0] === 'string'
+        && call[0].includes('/api/bookings')
+        && !call[0].includes('availability')
+        && !call[0].includes('create-payment')
       );
-      if (bookingCall) {
-        expect(bookingCall[1].method).toBe('POST');
-        expect(bookingCall[1].headers.Authorization).toBe('Bearer test-jwt-token');
-      }
+      expect(bookingCall).toBeDefined();
+      expect(bookingCall[1].method).toBe('POST');
+      expect(bookingCall[1].headers.Authorization).toBe('Bearer test-jwt-token');
     });
 
     it('should show error message on booking failure', async () => {
       const user = userEvent.setup();
 
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ error: { message: 'Not enough spots' } }),
+      global.fetch.mockImplementation((url) => {
+        if (typeof url === 'string' && url.includes('/api/bookings/availability')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: { remaining: 100, isSoldOut: false } }),
+          });
+        }
+        if (typeof url === 'string' && url.includes('/api/bookings')) {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ error: { message: 'Not enough spots' } }),
+          });
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`));
       });
 
       renderWithRouter(<BookingForm tour={mockTour} />);
 
       // Set date directly via DOM
       const dateEl = document.querySelector('input[type="date"]');
-      if (dateEl) {
-        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-        nativeInputValueSetter.call(dateEl, '2026-12-25');
-        dateEl.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      nativeInputValueSetter.call(dateEl, '2026-12-25');
+      dateEl.dispatchEvent(new Event('change', { bubbles: true }));
 
-      const submitBtn = screen.getByRole('button', { name: /Pay with VNPay|Processing/i });
-      if (!submitBtn.disabled) {
-        await user.click(submitBtn);
-        await waitFor(() => {
-          expect(screen.getByText('Not enough spots')).toBeInTheDocument();
-        });
-      }
+      await waitFor(() => {
+        const submitBtn = screen.getByRole('button', { name: /Pay with VNPay/i });
+        expect(submitBtn).not.toBeDisabled();
+      });
+
+      const submitBtn = screen.getByRole('button', { name: /Pay with VNPay/i });
+      await user.click(submitBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Not enough spots')).toBeInTheDocument();
+      });
     });
   });
 

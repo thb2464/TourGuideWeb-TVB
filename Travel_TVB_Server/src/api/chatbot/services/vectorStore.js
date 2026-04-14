@@ -30,7 +30,7 @@ function sleep(ms) {
 async function initialize() {
   if (collection) return collection;
 
-  const chromaUrl = process.env.CHROMADB_URL || 'http://localhost:8000';
+  const chromaUrl = process.env.CHROMADB_URL || 'http://localhost:42839';
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {

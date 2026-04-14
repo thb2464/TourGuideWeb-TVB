@@ -15,7 +15,7 @@ export default defineConfig({
   },
   preview: {
     host: '0.0.0.0',
-    port: 3011,
+    port: 23841,
     allowedHosts: [
       'srv1488417.hstgr.cloud',
     ]

@@ -68,6 +68,10 @@ TP. Hồ Chí Minh – Tháng 4/2026
 | ORM | Object-Relational Mapping — Ánh xạ đối tượng - quan hệ |
 | SEO | Search Engine Optimization — Tối ưu hóa công cụ tìm kiếm |
 | CORS | Cross-Origin Resource Sharing — Chia sẻ tài nguyên khác nguồn gốc |
+| PM2 | Process Manager 2 — Công cụ quản lý tiến trình Node.js (daemon, auto-restart, log rotation) |
+| VPS | Virtual Private Server — Máy chủ riêng ảo |
+| IPN | Instant Payment Notification — Thông báo thanh toán tức thời (VNPay callback server-to-server) |
+| HTTP/HTTPS | Hypertext Transfer Protocol (Secure) — Giao thức truyền siêu văn bản (bảo mật) |
 
 ---
 
@@ -91,6 +95,7 @@ TP. Hồ Chí Minh – Tháng 4/2026
 | Bảng 4.2 | Biến môi trường Backend |
 | Bảng 4.3 | Biến môi trường Frontend |
 | Bảng 4.4 | Các lệnh chạy hệ thống |
+| Bảng 4.5 | Ánh xạ port triển khai trên VPS |
 
 ---
 
@@ -123,6 +128,7 @@ TP. Hồ Chí Minh – Tháng 4/2026
 | Hình 4.3 | Kết quả chạy test Frontend (Vitest) |
 | Hình 4.4 | Kết quả chạy test Backend (Jest) |
 | Hình 4.5 | Pipeline CI/CD trên GitHub Actions |
+| Hình 4.6 | Luồng CI/CD tổng thể từ push đến live |
 
 ---
 
@@ -179,6 +185,23 @@ Xuất phát từ những vấn đề trên, nhóm quyết định thực hiện
 - Không hỗ trợ đặt tour cho nhóm lớn (>100 người) hoặc tour tùy chỉnh.
 - Không có ứng dụng di động native (chỉ responsive web).
 
+### 1.2.3 Giả định và Phụ thuộc
+
+**Giả định:**
+
+- Người dùng cuối có kết nối Internet ổn định khi truy cập website.
+- Trình duyệt của người dùng hỗ trợ ES2020+, `fetch API`, `localStorage`, và `sessionStorage`.
+- Quản trị viên có kiến thức cơ bản để thao tác với Strapi Admin Panel (CRUD content).
+- Google Gemini API và VNPay Sandbox API hoạt động ổn định trong giới hạn miễn phí dành cho phát triển/học tập.
+- ChromaDB container được giám sát ở cấp hạ tầng host và tự restart khi lỗi (policy `--restart unless-stopped`).
+
+**Phụ thuộc ngoài hệ thống:**
+
+- **Google Gemini API:** Phụ thuộc cho tính năng chatbot (Embedding 001 + Gemini 2.5 Flash). Nếu dịch vụ gián đoạn, chatbot trả thông báo lỗi thân thiện; các tính năng khác không bị ảnh hưởng.
+- **VNPay Sandbox:** Phụ thuộc cho thanh toán và hoàn tiền. Nếu VNPay down, người dùng vẫn có thể duyệt/đặt đơn (trạng thái `Pending`) nhưng không thanh toán được — cron sẽ tự chuyển đơn treo sang `Failed` sau 30 phút.
+- **GitHub & GitHub Actions:** Phụ thuộc cho mã nguồn, CI và webhook CD. Nếu GitHub down, ứng dụng production không bị ảnh hưởng (đã chạy độc lập trên VPS); chỉ việc deploy bản mới bị gián đoạn.
+- **VPS dùng chung (`srv1488417.hstgr.cloud`):** Phụ thuộc vào uptime của nhà cung cấp. Các dịch vụ đồng cư trú trên VPS không được phép chiếm các port đã đăng ký (17234, 23841, 42839, 31270).
+
 ## 1.3 Cấu trúc của báo cáo
 
 Báo cáo được tổ chức thành 5 chương:
@@ -191,16 +214,17 @@ Báo cáo được tổ chức thành 5 chương:
 
 ### Kiến trúc tổng quan
 
-[Hình 1.1: Kiến trúc tổng quan hệ thống TravelTVB — Sơ đồ khối thể hiện: React Frontend (port 5173) giao tiếp REST API với Strapi Backend (port 1337), Strapi kết nối với SQLite Database, ChromaDB Vector Database (port 8000) và VNPay Payment Gateway. ChromaDB giao tiếp với Google Gemini API (Embeddings + LLM). Mũi tên hai chiều giữa Frontend-Backend, một chiều từ Backend đến VNPay và ChromaDB, một chiều từ ChromaDB đến Gemini API.]
+[Hình 1.1: Kiến trúc tổng quan hệ thống TravelTVB — Sơ đồ khối thể hiện: React Frontend (Vite preview port 23841) giao tiếp REST API với Strapi Backend (port 17234), Strapi kết nối với SQLite Database, ChromaDB Vector Database (port 42839) và VNPay Payment Gateway. ChromaDB giao tiếp với Google Gemini API (Embeddings + LLM). PM2 giám sát 3 tiến trình (tourguide-strapi, tourguide-frontend, tourguide-cd) và GitHub Webhook Listener (port 31270) nhận sự kiện push để tự động deploy. Mũi tên hai chiều giữa Frontend-Backend, một chiều từ Backend đến VNPay và ChromaDB, một chiều từ ChromaDB đến Gemini API.]
 
 Hệ thống TravelTVB được xây dựng theo kiến trúc **Headless CMS** với sự tách biệt rõ ràng giữa Frontend và Backend:
 
-- **Frontend (React + Vite):** Ứng dụng SPA chạy trên port 5173, giao tiếp với Backend qua REST API. Sử dụng React Router cho điều hướng, Framer Motion cho hiệu ứng chuyển động, và Context API cho quản lý trạng thái (xác thực, ngôn ngữ).
-- **Backend (Strapi 5):** Headless CMS chạy trên port 1337, cung cấp REST API tự động cho 25+ content type. Tích hợp custom controller cho Booking (599 dòng), Chatbot (150 dòng) và VNPay payment.
-- **Cơ sở dữ liệu (SQLite):** Lưu trữ toàn bộ dữ liệu tour, booking, người dùng, nội dung CMS. Hỗ trợ chuyển sang MySQL/PostgreSQL cho production.
-- **Vector Database (ChromaDB):** Lưu trữ embedding vectors của dữ liệu tour cho chatbot RAG, chạy trên port 8000.
-- **Google Gemini API:** Cung cấp hai dịch vụ — Gemini Embedding 001 cho vector hóa văn bản và Gemini 2.5 Flash cho sinh câu trả lời chatbot.
-- **VNPay Sandbox:** Cổng thanh toán trực tuyến, xử lý giao dịch qua HMAC SHA-512 signature verification.
+- **Frontend (React + Vite):** Ứng dụng SPA, khi phát triển chạy trên Vite dev server (port 5173), khi triển khai sản phẩm được build tĩnh và phục vụ qua `vite preview` trên port **23841**. Giao tiếp với Backend qua REST API. Sử dụng React Router cho điều hướng, Framer Motion cho hiệu ứng chuyển động, và Context API cho quản lý trạng thái (xác thực, ngôn ngữ).
+- **Backend (Strapi 5):** Headless CMS chạy trên port **17234** trong môi trường triển khai (mặc định 1337 trong phát triển), cung cấp REST API tự động cho 25 content type + 1 custom API (chatbot). Tích hợp custom controller cho Booking (~598 dòng), Chatbot (~149 dòng) và VNPay payment/refund.
+- **Cơ sở dữ liệu (SQLite):** Lưu trữ toàn bộ dữ liệu tour, booking, người dùng, nội dung CMS tại `.tmp/data.db`. Hỗ trợ chuyển sang MySQL/PostgreSQL cho production.
+- **Vector Database (ChromaDB):** Lưu trữ embedding vectors của dữ liệu tour cho chatbot RAG, chạy trong Docker container trên host với port **42839**.
+- **Google Gemini API:** Cung cấp hai dịch vụ — Gemini Embedding 001 cho vector hóa văn bản (3072 chiều) và Gemini 2.5 Flash cho sinh câu trả lời chatbot.
+- **VNPay Sandbox:** Cổng thanh toán trực tuyến, xử lý giao dịch qua HMAC SHA-512 signature verification; hỗ trợ cả thanh toán và hoàn tiền (refund API).
+- **Hạ tầng triển khai:** PM2 làm process manager với 3 ứng dụng (`tourguide-strapi`, `tourguide-frontend`, `tourguide-cd`); GitHub Webhook Listener (`webhook.js`) trên port **31270** tự động kích hoạt `deploy.sh` khi có push lên nhánh `main` và CI xanh (xem Chương 4.7).
 
 ---
 
@@ -234,7 +258,7 @@ Single Page Application (Ứng dụng trang đơn) là một kiến trúc ứng 
 - **API-driven data:** Dữ liệu được tải bất đồng bộ qua AJAX/Fetch API, chỉ lấy phần dữ liệu cần thiết.
 - **Trải nghiệm mượt mà:** Không có hiện tượng "nhấp nháy" khi chuyển trang, tương tự ứng dụng native.
 
-Trong đồ án, Frontend được xây dựng dưới dạng SPA bằng **React 19** kết hợp **React Router v7** cho điều hướng phía client với 17 route.
+Trong đồ án, Frontend được xây dựng dưới dạng SPA bằng **React 19** kết hợp **React Router v7** cho điều hướng phía client với 16 route.
 
 ### 2.1.3 RAG — Retrieval Augmented Generation (Sinh văn bản có tăng cường truy xuất)
 
@@ -284,7 +308,7 @@ React là thư viện JavaScript mã nguồn mở do Meta (Facebook) phát tri�
 
 - **Functional Components + Hooks:** Toàn bộ component sử dụng hàm (không class), quản lý state bằng `useState`, side-effects bằng `useEffect`, context bằng `useContext`.
 - **Context API:** Hai context provider — `AuthContext` (quản lý đăng nhập/JWT) và `LanguageContext` (quản lý ngôn ngữ vi/en/zh).
-- **React Router v7:** Điều hướng client-side với 17 route, bao gồm 2 route được bảo vệ (`/profile`, `/booking/:id/ticket`) qua component `ProtectedRoute`.
+- **React Router v7:** Điều hướng client-side với 16 route, bao gồm 2 route được bảo vệ (`/profile`, `/booking/:id/ticket`) qua component `ProtectedRoute`.
 - **Custom Hooks:** `useCountUp` — hook tùy chỉnh tạo hiệu ứng đếm số cho phần thống kê trang chủ.
 
 #### Vite 7
@@ -307,7 +331,7 @@ export default defineConfig({
     ],
   },
   preview: {
-    port: 3011,
+    port: 23841,
   },
 })
 ```
@@ -337,11 +361,12 @@ Bảng 2.1: So sánh các công nghệ Frontend
 
 Strapi là **Headless CMS mã nguồn mở** hàng đầu, được viết bằng Node.js. Strapi 5 (phiên bản 5.36.0 trong đồ án) cung cấp:
 
-- **Content-Type Builder:** Giao diện kéo thả để tạo cấu trúc dữ liệu (schema) mà không cần viết code. Trong đồ án, 25 content type được định nghĩa (tours, bookings, single-posts, FAQ, navbar, footer...).
-- **REST API tự động:** Mỗi content type tự động có đầy đủ endpoint CRUD (`GET /api/tours`, `POST /api/tours`, `PUT /api/tours/:id`, `DELETE /api/tours/:id`).
+- **Content-Type Builder:** Giao diện kéo thả để tạo cấu trúc dữ liệu (schema) mà không cần viết code. Trong đồ án, **25 content type** được định nghĩa (tours, bookings, single-posts, FAQ, navbar, footer...) cùng **1 custom API không có schema** (`chatbot`) — tổng 26 thư mục trong `src/api/`. Trong số 25 content type, 22 content type bật tùy chọn i18n `"localized": true` để hỗ trợ đa ngôn ngữ; 3 content type (booking, form-submission nội bộ, …) chỉ sử dụng một ngôn ngữ vì đặc thù dữ liệu không cần dịch.
+- **REST API tự động:** Mỗi content type tự động có đầy đủ endpoint CRUD (`GET /api/tours`, `POST /api/tours`, `PUT /api/tours/:id`, `DELETE /api/tours/:id`). Endpoint mặc định của content type `booking` đã được khóa trả 403 Forbidden để buộc người dùng đi qua custom routes (xem mục Booking Lockdown ở Chương 3.3 và Phụ lục A.7).
 - **Hệ thống plugin:** Users-Permissions (JWT auth), i18n (đa ngôn ngữ), Upload (quản lý media).
-- **Custom Controller/Service:** Cho phép viết business logic tùy chỉnh — trong đồ án, booking controller (599 dòng) và chatbot controller (150 dòng) là các custom controller phức tạp nhất.
-- **Cron Tasks:** Hỗ trợ tác vụ định kỳ — trong đồ án, cứ mỗi 5 phút hệ thống tự động hủy các đơn đặt tour quá hạn 30 phút.
+- **Custom Controller/Service:** Cho phép viết business logic tùy chỉnh — trong đồ án, booking controller (~598 dòng) và chatbot controller (~149 dòng) là các custom controller phức tạp nhất.
+- **Cron Tasks:** Hỗ trợ tác vụ định kỳ — trong đồ án, cứ mỗi 5 phút hệ thống tự động hủy các đơn đặt tour quá hạn 30 phút (chuyển `Pending` → `Failed`).
+- **Components tái sử dụng:** 19 component Strapi (file `.json` trong `src/components/`) được dùng lại trong nhiều content type — ví dụ `highlights`, `itinerary-day`, các biến thể slider, v.v.
 
 Bảng 2.2: So sánh các hệ thống CMS
 
@@ -380,7 +405,7 @@ ChromaDB là vector database mã nguồn mở, viết bằng Python, hỗ trợ:
 - Lọc metadata (theo ngôn ngữ, loại chunk, tour ID).
 - API HTTP đơn giản, dễ tích hợp với Node.js qua thư viện `chromadb` npm.
 
-Trong đồ án, ChromaDB chạy như một server độc lập (port 8000) và lưu trữ 33 chunks embedding cho 9 tour × 3 ngôn ngữ.
+Trong đồ án, ChromaDB chạy như một server độc lập trong Docker container được quản lý ở cấp host (không nằm trong repo), lắng nghe trên port **42839** (tùy chỉnh để tránh xung đột với các dịch vụ khác trên cùng VPS), và lưu trữ 33 chunks embedding cho 9 tour × 3 ngôn ngữ. Việc re-index được kích hoạt định kỳ bằng script `index-tours-cron.sh` (xem Chương 4.7).
 
 ### 2.2.4 Thanh toán trực tuyến
 
@@ -415,7 +440,7 @@ Vitest là framework kiểm thử đơn vị (unit testing) được thiết k�
 
 #### Jest (Backend Testing)
 
-Jest là framework kiểm thử JavaScript phổ biến nhất, được sử dụng để kiểm thử các utility functions phía backend. Trong đồ án, Jest kiểm thử VNPay helper functions (`sortObject`, `formatVnpDate`) với 21 test case.
+Jest là framework kiểm thử JavaScript phổ biến nhất, được sử dụng để kiểm thử các utility functions phía backend. Trong đồ án, Jest kiểm thử VNPay helper functions (`sortObject`, `formatVnpDate`) với 19 test case.
 
 #### GitHub Actions (CI/CD)
 
@@ -514,6 +539,14 @@ Bảng 3.1: Danh sách yêu cầu chức năng
 | REQ-BOOK-09 | Thanh toán lại | Hệ thống phải cho phép thử thanh toán lại cho đơn hàng có trạng thái "Failed" | Trung bình |
 | REQ-BOOK-10 | Vé điện tử | Hệ thống phải tạo vé điện tử (E-ticket) với mã QR cho đơn đã thanh toán thành công | Trung bình |
 | REQ-BOOK-11 | Idempotency | Hệ thống phải đảm bảo idempotency trên VNPay callback — không cập nhật trùng lặp nếu callback được gọi nhiều lần | Cao |
+| **Hoàn tiền (Refund)** | | | |
+| REQ-REFUND-01 | Chính sách hoàn tiền | Hệ thống phải áp dụng chính sách hoàn tiền theo thời gian kể từ lúc đặt: ≤24h → 100%, ≤72h → 85%, >72h → 0% | Cao |
+| REQ-REFUND-02 | Gọi VNPay Refund API | Đối với đơn đã thanh toán (`Paid`) có `vnpay_transaction_no`, hệ thống phải gọi VNPay Refund API (HMAC SHA-512, pipe-separated signature) với timeout 25 giây | Cao |
+| REQ-REFUND-03 | Trạng thái hoàn tiền | Hệ thống phải phân biệt các trạng thái `refund_status`: `none`, `no_refund`, `not_charged`, `refunded`, `refund_failed`, `pending_manual` | Cao |
+| REQ-REFUND-04 | Chặn hủy quá hạn | Hệ thống phải chặn hủy đơn có `travel_date` đã qua (trả 400) | Trung bình |
+| REQ-REFUND-05 | Xác minh quyền sở hữu | Endpoint hủy đơn chỉ cho phép chủ đơn (khớp user_id) thao tác; người khác nhận 403/404 | Cao |
+| **Newsletter / Form** | | | |
+| REQ-NEWS-01 | Đăng ký nhận bản tin | Hệ thống cho phép khách gửi email qua form Newsletter, lưu vào content type `newsletter-email-submission` | Thấp |
 | **Trợ lý ảo AI (Chatbot)** | | | |
 | REQ-AI-01 | Hiểu ngôn ngữ | Chatbot phải hiểu ngôn ngữ tự nhiên tiếng Việt, tiếng Anh và tiếng Trung | Trung bình |
 | REQ-AI-02 | Trả lời chính xác | Chatbot chỉ được trả lời dựa trên dữ liệu tour thực tế (context), không bịa đặt (hallucination) | Cao |
@@ -1156,12 +1189,12 @@ DACN_TourGuideWeb/
 │   ├── src/
 │   │   ├── api/
 │   │   │   ├── booking/                 # Hệ thống đặt tour
-│   │   │   │   ├── controllers/booking.js   # 599 dòng — VNPay, refund
+│   │   │   │   ├── controllers/booking.js   # ~598 dòng — VNPay, refund
 │   │   │   │   ├── routes/booking.js        # CRUD routes (locked)
 │   │   │   │   ├── routes/01-custom-booking.js  # Custom routes
 │   │   │   │   ├── services/booking.js
 │   │   │   │   ├── utils/vnpay-helpers.js   # sortObject, formatVnpDate
-│   │   │   │   ├── utils/__tests__/vnpay-helpers.test.js  # 21 test cases
+│   │   │   │   ├── utils/__tests__/vnpay-helpers.test.js  # 19 test cases
 │   │   │   │   └── content-types/booking/schema.json
 │   │   │   ├── chatbot/                 # Hệ thống chatbot AI
 │   │   │   │   ├── controllers/chatbot.js   # Rate limiting, validation
@@ -1182,8 +1215,10 @@ DACN_TourGuideWeb/
 │   └── package.json
 │
 ├── .github/workflows/ci.yml            # GitHub Actions CI pipeline
-├── migrate-strapi-locales.mjs           # Script chuyển đổi ngôn ngữ
-├── index-tours-cron.sh                  # Cron script đồng bộ ChromaDB
+├── ecosystem.config.cjs                 # Cấu hình PM2 (3 apps: strapi, frontend, cd)
+├── webhook.js                           # GitHub webhook listener (port 31270)
+├── deploy.sh                            # Script CD tự động (git pull + rebuild + PM2 reload)
+├── index-tours-cron.sh                  # Cron script đồng bộ ChromaDB định kỳ
 └── docs/                                # Tài liệu dự án
 ```
 
@@ -1228,7 +1263,7 @@ Giải thích: Cron task này đảm bảo các đơn đặt tour "treo" (ngư�
 
 ### 4.3.2 Controller Booking — Tạo đơn đặt tour
 
-Đây là phần quan trọng nhất của hệ thống booking, sử dụng **Knex transaction** để đảm bảo tính nguyên tử (atomicity) — tránh tình trạng đặt trùng (race condition).
+Toàn bộ booking controller (`src/api/booking/controllers/booking.js`, ~598 dòng) tập hợp 7 method chính: `find`/`create`/`findOne`/`update`/`delete` (đều trả 403 — booking lockdown), `getAvailability`, `createPaymentUrl`, `vnpayReturn`, `myBookings`, `cancelBooking`, và `processVnpayRefund` (helper nội bộ). Phần dưới đây là nhánh quan trọng nhất — tạo đơn — sử dụng **Knex transaction** để đảm bảo tính nguyên tử (atomicity), tránh tình trạng đặt trùng (race condition) khi nhiều người dùng cùng đặt một tour vào cùng ngày.
 
 ```javascript
 // src/api/booking/controllers/booking.js (trích đoạn - Tạo booking)
@@ -1538,7 +1573,7 @@ Bảng 4.2: Biến môi trường Backend (`Travel_TVB_Server/.env`)
 | Biến | Bắt buộc | Mô tả | Ví dụ |
 |---|---|---|---|
 | HOST | Không | Địa chỉ server | `0.0.0.0` |
-| PORT | Không | Cổng server | `1337` |
+| PORT | Không | Cổng server (đã tuỳ chỉnh để tránh xung đột trên VPS dùng chung) | `17234` (mặc định `1337`) |
 | APP_KEYS | Có | 4 khóa mã hóa, phân cách bằng dấu phẩy | `key1,key2,key3,key4` |
 | API_TOKEN_SALT | Có | Muối cho API token | (random base64) |
 | ADMIN_JWT_SECRET | Có | Khóa bí mật JWT admin | (random base64) |
@@ -1547,15 +1582,16 @@ Bảng 4.2: Biến môi trường Backend (`Travel_TVB_Server/.env`)
 | JWT_SECRET | Có | Khóa bí mật JWT người dùng | (random base64) |
 | DATABASE_CLIENT | Không | Loại database | `sqlite` |
 | DATABASE_FILENAME | Không | Đường dẫn file SQLite | `.tmp/data.db` |
-| VNPAY_TMN_CODE | Không* | Mã terminal VNPay | `6UH2PIXS` |
+| VNPAY_TMN_CODE | Không* | Mã terminal VNPay (cấp qua email đăng ký sandbox) | `MXXV2ZBD` |
 | VNPAY_HASH_SECRET | Không* | Khóa bí mật HMAC VNPay | (từ VNPay sandbox) |
 | VNPAY_URL | Không* | URL cổng thanh toán | `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html` |
-| VNPAY_RETURN_URL | Không* | URL callback sau thanh toán | `http://localhost:1337/api/bookings/vnpay-return` |
-| FRONTEND_URL | Không | URL Frontend (redirect) | `http://localhost:5173` |
+| VNPAY_RETURN_URL | Không* | URL callback sau thanh toán | `http://srv1488417.hstgr.cloud:17234/api/bookings/vnpay-return` |
+| FRONTEND_URL | Không | URL Frontend (redirect sau callback) | `http://srv1488417.hstgr.cloud:23841` |
 | GOOGLE_AI_API_KEY | Không** | API key Google Gemini | (từ Google AI Studio) |
-| CHROMADB_URL | Không** | URL ChromaDB server | `http://localhost:8000` |
+| CHROMADB_URL | Không** | URL ChromaDB server (Docker container trên host) | `http://localhost:42839` |
+| WEBHOOK_SECRET | Không*** | HMAC secret dùng cho GitHub webhook CD | (random 32+ ký tự) |
 
-> *Bắt buộc nếu sử dụng tính năng thanh toán. **Bắt buộc nếu sử dụng tính năng chatbot.
+> *Bắt buộc nếu sử dụng tính năng thanh toán. **Bắt buộc nếu sử dụng tính năng chatbot. ***Bắt buộc nếu bật Continuous Deployment qua GitHub webhook.
 
 ## 4.4 Phát triển Frontend
 
@@ -1790,7 +1826,7 @@ function App() {
 export default App;
 ```
 
-Giải thích: App.jsx định nghĩa 17 route (15 public + 2 protected). `AnimatePresence` bọc `Routes` để tạo hiệu ứng chuyển trang mượt mà. Layout cố định gồm Navbar (trên), main content (giữa), Newsletter + Footer (dưới), ChatbotWidget (floating). `AppContent` tách riêng để `useLocation` hoạt động trong `Router`.
+Giải thích: App.jsx định nghĩa 16 route (14 public + 2 protected: `/profile`, `/booking/:id/ticket`). `AnimatePresence` bọc `Routes` để tạo hiệu ứng chuyển trang mượt mà. Layout cố định gồm Navbar (trên), main content (giữa), Newsletter + Footer (dưới), ChatbotWidget (floating). `AppContent` tách riêng để `useLocation` hoạt động trong `Router`.
 
 ### 4.4.5 Cấu hình biến môi trường Frontend
 
@@ -1798,9 +1834,11 @@ Bảng 4.3: Biến môi trường Frontend (`Travel_TVB/.env`)
 
 | Biến | Bắt buộc | Mô tả | Ví dụ |
 |---|---|---|---|
-| VITE_STRAPI_URL | Có | URL của Strapi Backend | `http://localhost:1337` |
+| VITE_STRAPI_URL | Có | URL của Strapi Backend | Dev: `http://localhost:1337` — Prod: `http://srv1488417.hstgr.cloud:17234` |
 | VITE_STRAPI_API_TOKEN | Có | API Token từ Strapi Admin Panel | (tạo trong Settings > API Tokens) |
 | VITE_CHATBOT_ENABLED | Không | Bật/tắt chatbot widget | `true` |
+
+> Lưu ý: `VITE_*` được bake vào bundle lúc `npm run build`, nên khi đổi URL Backend phải build lại Frontend và khởi động lại `tourguide-frontend` qua PM2.
 
 ## 4.5 Hướng dẫn cài đặt và sử dụng hệ thống
 
@@ -1856,19 +1894,23 @@ npm run dev
 
 ### 4.5.4 Cài đặt ChromaDB (Vector Database cho Chatbot)
 
+Trong môi trường triển khai thực tế của đồ án, ChromaDB được chạy trong một Docker container độc lập trên host (không commit Dockerfile vào repo vì container được quản lý ở cấp hạ tầng, dùng chung tiện ích `docker run` với volume persistent).
+
 ```bash
-# Cách 1: Cài qua pip (khuyến nghị cho phát triển)
+# Cách khuyến nghị cho triển khai: Docker (đúng với môi trường hiện tại — port 42839)
+docker run -d --name chromadb \
+  -p 42839:8000 \
+  -v chroma_data:/chroma/chroma \
+  --restart unless-stopped \
+  chromadb/chroma:latest
+
+# Cách thay thế cho phát triển cục bộ: pip (port mặc định 8000)
 pip install chromadb
 chroma run --host 0.0.0.0 --port 8000
 
-# Cách 2: Chạy qua Docker
-docker run -d --name chromadb \
-  -p 8000:8000 \
-  -v chroma_data:/chroma/chroma \
-  chromadb/chroma:latest
-
 # Kiểm tra ChromaDB đang chạy:
-curl http://localhost:8000/api/v1/heartbeat
+curl http://localhost:42839/api/v1/heartbeat   # môi trường triển khai
+curl http://localhost:8000/api/v1/heartbeat    # phát triển cục bộ
 ```
 
 ### 4.5.5 Lập chỉ mục dữ liệu Tour cho Chatbot
@@ -1896,7 +1938,7 @@ Bảng 4.4: Các lệnh chạy hệ thống
 | `npm run start` | Travel_TVB_Server | Khởi động Strapi (production) |
 | `npm run dev` | Travel_TVB | Khởi động Vite dev server (port 5173) |
 | `npm run build` | Travel_TVB | Build Frontend cho production |
-| `npm run preview` | Travel_TVB | Preview bản build (port 3011) |
+| `npm run preview` | Travel_TVB | Preview bản build (port 23841 theo cấu hình `vite.config.js`) |
 | `npm test` | Travel_TVB | Chạy test Frontend (Vitest) |
 | `npm test` | Travel_TVB_Server | Chạy test Backend (Jest) |
 | `npm run test:coverage` | Travel_TVB | Chạy test với báo cáo coverage |
@@ -1930,7 +1972,7 @@ Frontend sử dụng Vitest (tương thích Jest API) kết hợp React Testing 
 
 Backend sử dụng Jest để kiểm thử các utility function. File test chính:
 
-**`src/api/booking/utils/__tests__/vnpay-helpers.test.js`** — 21 test cases:
+**`src/api/booking/utils/__tests__/vnpay-helpers.test.js`** — 19 test cases:
 
 ```javascript
 // Trích đoạn test cases tiêu biểu
@@ -1972,7 +2014,7 @@ describe('formatVnpDate', () => {
 });
 ```
 
-[Hình 4.4: Kết quả chạy test Backend — Screenshot terminal hiển thị kết quả `npm test` trong thư mục Travel_TVB_Server. Hiển thị: Test Suites: 1 passed, Tests: 21 passed, Time: Xs. Tất cả 21 test cases PASS.]
+[Hình 4.4: Kết quả chạy test Backend — Screenshot terminal hiển thị kết quả `npm test` trong thư mục Travel_TVB_Server. Hiển thị: Test Suites: 1 passed, Tests: 19 passed, Time: Xs. Tất cả 19 test cases PASS.]
 
 ### 4.6.3 CI/CD Pipeline (GitHub Actions)
 
@@ -2043,6 +2085,128 @@ jobs:
 
 [Hình 4.5: Pipeline CI/CD trên GitHub Actions — Screenshot giao diện GitHub Actions hiển thị pipeline "CI" với 2 jobs chạy song song: "Frontend Tests" (✅ passed) và "Backend Tests" (✅ passed). Thời gian chạy khoảng 1-2 phút mỗi job. Hiển thị trên nhánh develop.]
 
+## 4.7 Triển khai và Continuous Deployment
+
+Hệ thống được triển khai trên một VPS Linux dùng chung (`srv1488417.hstgr.cloud`) với PM2 làm process manager, GitHub Actions đảm nhiệm Continuous Integration (CI), và một webhook listener tự phát triển đảm nhiệm Continuous Deployment (CD). Vì VPS được dùng cho nhiều đồ án khác, các port đã được dịch chuyển khỏi giá trị mặc định để tránh xung đột.
+
+### 4.7.1 Bảng port thực tế và ý nghĩa
+
+Bảng 4.5: Ánh xạ port triển khai
+
+| Dịch vụ | Port triển khai | Port mặc định | Quản lý bởi |
+|---|---|---|---|
+| Strapi Backend (`tourguide-strapi`) | **17234** | 1337 | PM2 |
+| Vite Preview Frontend (`tourguide-frontend`) | **23841** | 4173 | PM2 |
+| ChromaDB (Docker container) | **42839** | 8000 | Docker host |
+| GitHub Webhook Listener (`tourguide-cd`) | **31270** | — | PM2 |
+| Vite Dev Server (chỉ cho phát triển cục bộ) | 5173 | 5173 | Developer |
+
+Các port được chọn theo nguyên tắc: (1) nằm ngoài khoảng mặc định của các framework phổ biến; (2) không gần bất kỳ port nào đang lắng nghe trên VPS; (3) không trùng port của các đồ án cùng VPS.
+
+### 4.7.2 PM2 — Process Manager
+
+File `ecosystem.config.cjs` ở thư mục gốc cấu hình 3 ứng dụng cho PM2:
+
+```javascript
+// ecosystem.config.cjs (lược trích)
+module.exports = {
+  apps: [
+    {
+      name: 'tourguide-strapi',
+      cwd: './Travel_TVB_Server',
+      script: 'npm',
+      args: 'run start',
+      env: { NODE_ENV: 'production', HOST: '0.0.0.0', PORT: '17234' },
+    },
+    {
+      name: 'tourguide-frontend',
+      cwd: './Travel_TVB',
+      script: 'npm',
+      args: 'run preview -- --host 0.0.0.0 --port 23841',
+      env: { NODE_ENV: 'production' },
+    },
+    {
+      name: 'tourguide-cd',
+      cwd: './',
+      script: 'webhook.js',
+      env: { NODE_ENV: 'production' },
+    },
+  ],
+};
+```
+
+Việc khởi động cả hệ thống chỉ cần một lệnh duy nhất:
+
+```bash
+pm2 startOrReload ecosystem.config.cjs
+pm2 save             # Ghi cấu hình để resurrect sau khi reboot
+pm2 status           # Kiểm tra 3 app tourguide-* đang "online"
+```
+
+### 4.7.3 Webhook Listener (`webhook.js`) — Nhận sự kiện từ GitHub
+
+`webhook.js` là một HTTP server thuần Node.js (không phụ thuộc thư viện ngoài) lắng nghe trên port **31270**. Mỗi khi GitHub gửi `POST /webhook`, listener thực hiện các bước:
+
+1. **Xác minh chữ ký HMAC-SHA256:** So sánh header `X-Hub-Signature-256` với HMAC tính bằng `WEBHOOK_SECRET` — chặn mọi request giả mạo.
+2. **Lọc sự kiện:** Chỉ xử lý `workflow_run` có `conclusion = "success"` trên nhánh `main` và workflow tên `CI` — nghĩa là CI đã xanh mới triển khai.
+3. **Kích hoạt deploy bất đồng bộ:** Spawn `deploy.sh` dưới dạng tiến trình con tách rời (detached), trả về `202 Accepted` ngay — GitHub không phải chờ deploy hoàn tất.
+4. **Ghi log:** Ghi timestamp, hành động và commit SHA vào `deploy.log` để truy vết.
+
+Cơ chế "CI trước, CD sau" này đảm bảo code bị test fail sẽ **không** tự động lên production.
+
+### 4.7.4 Deploy Script (`deploy.sh`) — Triển khai thông minh
+
+`deploy.sh` (~173 dòng) được viết bằng Bash, sử dụng cờ `set -euo pipefail` để dừng ngay khi có lỗi. Các giai đoạn chính:
+
+1. **Acquire lock:** Dùng file lock tại `/tmp/tourguide-deploy.lock` để tránh hai lần deploy chạy đồng thời.
+2. **Bảo vệ dữ liệu sống:** Trước `git reset --hard`, script stash các file không được ghi đè:
+   - `Travel_TVB_Server/.tmp/data.db` — database SQLite production
+   - `Travel_TVB_Server/public/uploads/` — media do admin upload
+   - `.env` files của cả Frontend và Backend
+3. **Git sync:** `git fetch origin main && git reset --hard origin/main` để đồng bộ tuyệt đối.
+4. **Phát hiện thay đổi:** Dùng `git diff --name-only ORIG_HEAD HEAD` để quyết định cần rebuild gì:
+   - Có thay đổi trong `Travel_TVB_Server/package-lock.json` → `npm ci` backend.
+   - Có thay đổi bất kỳ trong `Travel_TVB_Server/**` → `npm run build` (rebuild Strapi admin panel) + `pm2 reload tourguide-strapi --update-env`.
+   - Có thay đổi trong `Travel_TVB/package-lock.json` → `npm ci` frontend.
+   - Có thay đổi bất kỳ trong `Travel_TVB/**` → `npm run build` Frontend + `pm2 reload tourguide-frontend --update-env`.
+5. **Ghi đè middleware:** Script áp dụng file `config/middlewares.js` với CORS whitelist cố định cho domain production, đảm bảo config production không bị drift theo từng commit.
+6. **Khôi phục dữ liệu sống + release lock:** Trả `data.db`, `uploads/`, `.env` về đúng chỗ và xóa file lock.
+7. **Ghi log:** Toàn bộ stdout/stderr được append vào `deploy.log`.
+
+Chiến lược rebuild có điều kiện này rút ngắn thời gian deploy trung bình từ ~60 giây (full rebuild) xuống dưới 10 giây khi chỉ sửa code không đụng dependencies — đủ nhanh để phản hồi push tức thì.
+
+### 4.7.5 Re-indexing Chatbot theo lịch (`index-tours-cron.sh`)
+
+Sau mỗi lần admin thêm/sửa tour trong Strapi, ChromaDB cần được re-index để chatbot trả lời dựa trên nội dung mới. Việc này được tự động hóa bằng script Bash `index-tours-cron.sh` ở thư mục gốc, dự kiến chạy qua cron (ví dụ mỗi 30 phút):
+
+```bash
+#!/usr/bin/env bash
+# index-tours-cron.sh (lược trích)
+export STRAPI_URL="http://localhost:17234"
+export CHROMADB_URL="http://localhost:42839"
+
+# Health-check trước khi index
+curl --max-time 5 --fail "$STRAPI_URL/_health"             || exit 1
+curl --max-time 5 --fail "$CHROMADB_URL/api/v1/heartbeat"  || exit 1
+
+cd Travel_TVB_Server
+node src/api/chatbot/scripts/indexTours.js >> ../index-tours-cron.log 2>&1
+```
+
+Script chỉ chạy khi cả Strapi lẫn ChromaDB đều sống; nếu một dịch vụ down, script thoát không lỗi silent để cron không spam log.
+
+### 4.7.6 Quy trình triển khai end-to-end
+
+[Hình 4.6: Luồng CI/CD tổng thể — Sơ đồ thể hiện: Developer push → GitHub nhận commit → GitHub Actions chạy CI (frontend-tests + backend-tests song song) → Nếu xanh, GitHub gửi `workflow_run` webhook đến `webhook.js` (port 31270) → `webhook.js` xác minh HMAC → Spawn `deploy.sh` → Git reset --hard → Phát hiện thay đổi → Rebuild có chọn lọc → PM2 reload các app tương ứng → Người dùng cuối thấy phiên bản mới. Thời gian trung bình từ push đến live: 2-3 phút nếu không đổi dependencies.]
+
+### 4.7.7 Giám sát và phục hồi
+
+- **PM2 logs:** `pm2 logs tourguide-strapi --lines 200` để xem log thời gian thực; log xoay vòng mặc định.
+- **Deploy log:** `tail -f deploy.log` để quan sát từng lần CD chạy.
+- **Cron log:** `tail -f index-tours-cron.log` để kiểm tra kết quả re-indexing.
+- **Khôi phục sau reboot VPS:** `pm2 resurrect` sẽ khởi động lại cả 3 app từ snapshot do `pm2 save` tạo ra.
+- **Rollback nhanh:** `git reset --hard <previous-sha>` trên VPS rồi chạy tay `./deploy.sh` — không cần push ngược lên GitHub.
+
 ---
 
 # Chương 5 – KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
@@ -2053,7 +2217,7 @@ Sau quá trình phát triển, nhóm đã hoàn thành xây dựng hệ thống 
 
 ### 5.1.1 Giao diện người dùng (Frontend)
 
-- Xây dựng thành công giao diện SPA bằng **React 19 + Vite 7** với 17 route (15 public, 2 protected), đáp ứng tốt trên nhiều kích thước màn hình (responsive design).
+- Xây dựng thành công giao diện SPA bằng **React 19 + Vite 7** với 16 route (14 public, 2 protected), đáp ứng tốt trên nhiều kích thước màn hình (responsive design).
 - Tích hợp hiệu ứng chuyển động mượt mà bằng **Framer Motion**: hiệu ứng chuyển trang (AnimatePresence), hiệu ứng cuộn (AnimateOnScroll hỗ trợ 3 hướng), hero slider tự động xoay mỗi 7 giây.
 - Xây dựng hệ thống quản lý trạng thái bằng **React Context API** với 2 provider: `AuthContext` (xác thực JWT) và `LanguageContext` (đa ngôn ngữ vi/en/zh).
 - Triển khai thành phần `ProtectedRoute` bảo vệ các trang yêu cầu đăng nhập.
@@ -2061,8 +2225,8 @@ Sau quá trình phát triển, nhóm đã hoàn thành xây dựng hệ thống 
 
 ### 5.1.2 Hệ thống Backend (Strapi CMS)
 
-- Xây dựng Backend dựa trên **Strapi 5.36.0** với **25 content type** (tour, booking, bài viết, FAQ, navbar, footer, hero slider...) và **30 component** tái sử dụng.
-- Phát triển **custom booking controller** (599 dòng) xử lý toàn bộ nghiệp vụ đặt tour: tạo đơn, thanh toán, callback VNPay, hủy đơn, hoàn tiền, thanh toán lại.
+- Xây dựng Backend dựa trên **Strapi 5.36.0** với **25 content type + 1 custom API** (chatbot) — tương ứng 26 thư mục trong `src/api/` (tour, booking, bài viết, FAQ, navbar, footer, hero slider...) và **19 component Strapi** tái sử dụng.
+- Phát triển **custom booking controller** (~598 dòng) xử lý toàn bộ nghiệp vụ đặt tour: tạo đơn, thanh toán, callback VNPay, hủy đơn, hoàn tiền, thanh toán lại.
 - Sử dụng **Knex transaction** để đảm bảo tính nguyên tử khi tạo booking, ngăn chặn race condition đặt trùng.
 - Triển khai **cron task** (mỗi 5 phút) tự động hủy đơn Pending quá 30 phút, giải phóng chỗ cho khách khác.
 - Mở rộng User schema với 2 trường tùy chỉnh: `full_name` và `phone`.
@@ -2090,16 +2254,23 @@ Sau quá trình phát triển, nhóm đã hoàn thành xây dựng hệ thống 
 ### 5.1.5 Đa ngôn ngữ (i18n)
 
 - Hỗ trợ **3 ngôn ngữ** xuyên suốt hệ thống:
-  - **Backend:** Strapi i18n plugin — mỗi content type có bản dịch vi/en/zh, API trả về nội dung theo `?locale=XX`.
-  - **Frontend:** Pattern `displayData` trong 15+ component — object chứa bản dịch cho mỗi chuỗi hiển thị.
-- Chuyển đổi ngôn ngữ mượt mà không cần tải lại trang, lưu trữ trong `sessionStorage`.
-- Phát triển script migration (`migrate-strapi-locales.mjs`, 961 dòng) để chuyển đổi 20+ content type từ đơn ngữ sang tam ngữ.
+  - **Backend:** Strapi i18n plugin — 22/25 content type bật `"localized": true` để có bản dịch vi/en/zh, API trả về nội dung theo `?locale=XX`. 3 content type không cần đa ngôn ngữ (booking và các form-submission nội bộ) vì dữ liệu do người dùng nhập, không phải nội dung biên tập.
+  - **Frontend:** Pattern `displayData` được sử dụng trong **15 component** — object chứa bản dịch cho mỗi chuỗi hiển thị.
+- Chuyển đổi ngôn ngữ mượt mà không cần tải lại trang, lưu trữ trong `sessionStorage` để duy trì lựa chọn khi điều hướng.
 
 ### 5.1.6 Kiểm thử và CI/CD
 
 - **Frontend:** Vitest + React Testing Library với 11+ file test, bao phủ các component quan trọng (BookingForm, TourCard, ProtectedRoute, AuthContext, LanguageContext, Login, Register, Tours).
-- **Backend:** Jest với 21 test case kiểm thử VNPay helper functions (sortObject, formatVnpDate).
-- **CI/CD:** GitHub Actions pipeline tự động chạy 2 job song song (Frontend tests + Backend tests) khi push hoặc tạo PR vào nhánh `main`/`develop`. Upload báo cáo coverage tự động.
+- **Backend:** Jest với 19 test case kiểm thử VNPay helper functions (sortObject, formatVnpDate) — bao phủ các nhánh chuẩn hóa URL-encode, sắp xếp tham số theo alphabet, định dạng ngày 14 ký tự, ranh giới thời gian (00:00:00, 23:59:59), và giá trị null/undefined.
+- **CI:** GitHub Actions pipeline tự động chạy 2 job song song (Frontend tests + Backend tests) khi push hoặc tạo PR vào nhánh `main`/`develop`. Upload báo cáo coverage tự động.
+
+### 5.1.7 Triển khai và Continuous Deployment
+
+- Triển khai thành công hệ thống trên VPS Linux dùng chung với 3 tiến trình quản lý bởi **PM2** (`tourguide-strapi` port 17234, `tourguide-frontend` port 23841, `tourguide-cd` port 31270) và ChromaDB chạy Docker container độc lập trên port 42839.
+- Xây dựng **webhook listener** thuần Node.js (94 dòng) nhận sự kiện `workflow_run` từ GitHub, xác minh HMAC-SHA256, và chỉ kích hoạt deploy khi CI xanh — cơ chế "CI gate" đảm bảo không có mã fail test nào lên production.
+- Viết **deploy script thông minh** (~173 dòng Bash) với phát hiện thay đổi qua `git diff`, rebuild có điều kiện (chỉ rebuild Strapi admin panel nếu Backend thay đổi, chỉ rebuild Frontend nếu Frontend thay đổi), bảo vệ dữ liệu sống (`data.db`, `uploads/`, `.env`) xuyên qua mỗi lần `git reset --hard`.
+- Thời gian từ `git push` đến live trung bình 2–3 phút; thời gian deploy khi không đổi dependencies dưới 10 giây.
+- Tự động re-index ChromaDB theo lịch qua `index-tours-cron.sh` — đảm bảo chatbot luôn trả lời dựa trên dữ liệu tour mới nhất.
 
 ## 5.2 Ưu điểm của hệ thống
 
@@ -2122,7 +2293,9 @@ Sau quá trình phát triển, nhóm đã hoàn thành xây dựng hệ thống 
 
 6. **Trải nghiệm người dùng mượt mà:** Hiệu ứng chuyển trang, scroll animation, hero slider tự động, typing indicator trên chatbot, real-time price calculation.
 
-7. **DevOps tốt:** CI/CD pipeline tự động, test tự động, cron task dọn dẹp booking quá hạn.
+7. **DevOps tốt:** CI/CD pipeline tự động (GitHub Actions chạy test + webhook listener HMAC-verified kích hoạt deploy khi CI xanh), test tự động, cron task dọn dẹp booking quá hạn và cron re-indexing ChromaDB.
+
+8. **Deploy gần như không gián đoạn:** PM2 `reload` thay vì `restart` giữ tiến trình cũ phục vụ request cho tới khi tiến trình mới sẵn sàng; thời gian downtime thực tế dưới 1 giây. Script deploy bảo vệ `data.db` và `uploads/` xuyên qua mỗi lần `git reset --hard`, tránh mất dữ liệu production.
 
 ## 5.3 Nhược điểm và hạn chế
 
@@ -2664,7 +2837,7 @@ module.exports = { initialize, embedText, embedBatch, addDocuments, search, clea
 ## A.6 Chatbot Controller — Rate Limiting và Input Validation (Backend)
 
 ```javascript
-// src/api/chatbot/controllers/chatbot.js (toàn bộ — 150 dòng)
+// src/api/chatbot/controllers/chatbot.js (toàn bộ — ~149 dòng)
 'use strict';
 
 const chatbotService = require('../services/chatbot');
@@ -3087,7 +3260,7 @@ export default ChatbotWidget;
 ## A.11 Backend Test — VNPay Helpers (trích đoạn tiêu biểu)
 
 ```javascript
-// src/api/booking/utils/__tests__/vnpay-helpers.test.js (trích đoạn — 21 test cases)
+// src/api/booking/utils/__tests__/vnpay-helpers.test.js (trích đoạn — 19 test cases)
 const { sortObject, formatVnpDate } = require('../vnpay-helpers');
 
 describe('sortObject', () => {
