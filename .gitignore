@@ -9,3 +9,6 @@ deploy.sh
 deploy.log
 webhook.js
 ecosystem.config.cjs
+# Context files (local-only prompts)
+Context.md
+PLAN.md
