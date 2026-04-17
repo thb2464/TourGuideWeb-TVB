@@ -113,7 +113,7 @@ const NewsPostArchive = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('thiTruong');
+  const [activeTab, setActiveTab] = useState('integer');
   const [activeChildTab, setActiveChildTab] = useState('QuocTe');
   const [pagination, setPagination] = useState({ page: 1, pageCount: 1 });
   
@@ -244,9 +244,6 @@ const NewsPostArchive = () => {
             <h1>{TEXT.title}</h1>
           </div>
           <div className="npa-tabs">
-            <button className={`npa-tab-btn ${activeTab === 'thiTruong' ? 'active' : ''}`} onClick={() => handleTabClick('thiTruong')}>
-              {TEXT.marketTab}
-            </button>
             <button className={`npa-tab-btn ${activeTab === 'integer' ? 'active' : ''}`} onClick={() => handleTabClick('integer')}>
               {TEXT.integerTab}
             </button>
@@ -260,26 +257,6 @@ const NewsPostArchive = () => {
           </form>
         </div>
         
-        {activeTab === 'thiTruong' && (
-            <div 
-                className="npa-child-tabs" 
-                style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', width: '100%', justifyContent: 'flex-start' }}
-            >
-                <button 
-                    className={`npa-tab-btn ${activeChildTab === 'quocTe' ? 'active' : ''}`} 
-                    onClick={() => handleChildTabClick('quocTe')}
-                >
-                    {TEXT.globalTab}
-                </button>
-                <button 
-                    className={`npa-tab-btn ${activeChildTab === 'trongNuoc' ? 'active' : ''}`} 
-                    onClick={() => handleChildTabClick('trongNuoc')}
-                >
-                    {TEXT.vietnameseTab}
-                </button>
-            </div>
-        )}
-
       </header>
 
       <main className="npa-content">
