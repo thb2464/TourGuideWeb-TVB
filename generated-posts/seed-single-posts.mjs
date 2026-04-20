@@ -26,9 +26,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Config ──────────────────────────────────────────────────────────
 const STRAPI_URL = process.env.STRAPI_URL || 'http://localhost:1337';
-const API_TOKEN =
-  process.env.STRAPI_API_TOKEN ||
-  '3f031e1d4d40388df56a5ee3701bf4b5e9ca5efddd543c15af42d2ed2f24a723031914adea35628711b5574a317f20ea14841d1c165e728f7ff0753f3ad7b3b5cba03012abdb0663c41234478d3682c1050ea5f272c1547379fb4be75c6b5842e9b53f9fe939446cde3c7ddbe6fd1dafe00cc65503c83ebc0871bf819d3e782e';
+const API_TOKEN = process.env.STRAPI_API_TOKEN;
+if (!API_TOKEN) {
+  console.error('Error: STRAPI_API_TOKEN environment variable is required.');
+  console.error('Generate one at Strapi admin → Settings → API Tokens, then:');
+  console.error('  STRAPI_API_TOKEN=<token> node generated-posts/seed-single-posts.mjs');
+  process.exit(1);
+}
 
 const DATA_FILE = path.join(__dirname, 'posts-content.json');
 
