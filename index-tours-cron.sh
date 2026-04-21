@@ -37,6 +37,11 @@ EXIT_CODE=${PIPESTATUS[0]}
 
 if [ $EXIT_CODE -eq 0 ]; then
   log "Indexing completed successfully"
+  # The indexer deletes and recreates the Chroma collection, so the Strapi
+  # process holds a stale collection handle. Restart so the chatbot re-resolves.
+  log "Restarting tourguide-strapi to refresh cached collection handle..."
+  pm2 restart tourguide-strapi >> "$LOG_FILE" 2>&1
+  log "Strapi restart triggered"
 else
   log "ERROR: Indexing failed with exit code $EXIT_CODE"
 fi
