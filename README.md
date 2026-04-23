@@ -22,9 +22,11 @@ A full-stack tour guide and booking web application for **Travel TVB**, a Vietna
 9. [Chatbot (RAG Pipeline)](#chatbot-rag-pipeline)
 10. [Payment Integration (VNPay)](#payment-integration-vnpay)
 11. [Internationalization (i18n)](#internationalization-i18n)
-12. [Testing](#testing)
-13. [CI/CD](#cicd)
-14. [Troubleshooting](#troubleshooting)
+12. [Admin Panel Customizations](#admin-panel-customizations)
+13. [Production Deployment](#production-deployment)
+14. [Testing](#testing)
+15. [CI/CD](#cicd)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -69,9 +71,10 @@ A full-stack tour guide and booking web application for **Travel TVB**, a Vietna
 |                | React Loading Skeleton          | 3.5.0      |
 | **Backend**    | Strapi (Headless CMS)           | 5.36.0     |
 |                | better-sqlite3                  | 12.4.1     |
-| **AI/Chatbot** | Google Gemini 2.5 Flash (LLM)   | -          |
-|                | Gemini Embedding 001            | -          |
+| **AI/Chatbot** | Google Gemini (LLM alias)       | `gemini-flash-latest` |
+|                | Gemini Embedding 001            | 3072-dim   |
 |                | ChromaDB (Vector DB)            | 3.4.0      |
+| **Admin**      | Recharts (dashboard charts)     | 3.8.1      |
 | **Payments**   | VNPay Sandbox                   | -          |
 | **Testing**    | Vitest (frontend)               | 4.1.2      |
 |                | Jest (backend)                  | 30.3.0     |
@@ -88,8 +91,11 @@ Before you begin, make sure you have the following installed:
 | -------------- | --------------------- | --------------------------------------------------- |
 | **Node.js**    | >= 20.0.0, <= 24.x.x | [nodejs.org](https://nodejs.org/)                   |
 | **npm**        | >= 6.0.0              | Bundled with Node.js                                |
-| **Python**     | >= 3.8 (for ChromaDB) | [python.org](https://www.python.org/)               |
+| **Docker**     | Any recent version (recommended for ChromaDB) | [docker.com](https://www.docker.com/) |
+| **Python**     | >= 3.8 (only if running ChromaDB without Docker) | [python.org](https://www.python.org/) |
 | **Git**        | Any recent version    | [git-scm.com](https://git-scm.com/)                |
+| **Google Gemini API key** | Free tier works   | [aistudio.google.com](https://aistudio.google.com/app/apikey) |
+| **VNPay sandbox credentials** | For payment testing | [sandbox.vnpayment.vn](https://sandbox.vnpayment.vn) |
 
 Verify your installations:
 
@@ -124,15 +130,25 @@ DACN_TourGuideWeb/
 │   │   ├── plugins.js              # Plugin config (users-permissions, JWT)
 │   │   └── server.js               # Server config (host, port)
 │   ├── src/
+│   │   ├── admin/                  # Admin panel customizations (loaded by Strapi)
+│   │   │   ├── app.jsx             # Registers custom menu links
+│   │   │   └── pages/
+│   │   │       ├── Dashboard.jsx   # Analytics dashboard (KPIs, charts)
+│   │   │       └── ChatbotSync.jsx # Manual ChromaDB reindex trigger
+│   │   ├── policies/
+│   │   │   └── is-admin-panel.js   # Custom policy: admin session token gate
 │   │   └── api/
 │   │       ├── tour/               # Tour content type
 │   │       ├── tour-category/      # Tour categories
-│   │       ├── booking/            # Booking + VNPay integration
+│   │       ├── booking/            # Booking + VNPay (create + return + refund)
+│   │       ├── dashboard/          # GET /api/dashboard/overview (admin-only)
 │   │       ├── chatbot/            # AI Chatbot (RAG)
 │   │       │   ├── controllers/chatbot.js
+│   │       │   ├── controllers/reindex.js   # Trigger + status for ChromaDB reindex
 │   │       │   ├── services/chatbot.js
 │   │       │   ├── services/vectorStore.js
 │   │       │   ├── routes/chatbot.js
+│   │       │   ├── routes/reindex.js
 │   │       │   └── scripts/indexTours.js
 │   │       ├── single-post/        # Blog posts
 │   │       ├── single-community-post/
@@ -257,29 +273,31 @@ The frontend will be available at **http://localhost:5173**.
 
 ChromaDB is needed for the AI chatbot's RAG (Retrieval Augmented Generation) pipeline. It stores tour data embeddings for semantic search.
 
-**Option A: Install via pip (Recommended for development)**
-
-```bash
-pip install chromadb
-
-# Start the ChromaDB server
-chroma run --host 0.0.0.0 --port 8000
-```
-
-**Option B: Run via Docker**
+**Option A: Docker (Recommended — this is what the production deploy uses)**
 
 ```bash
 docker run -d --name chromadb \
   -p 8000:8000 \
-  -v chroma_data:/chroma/chroma \
+  -v chromadb_data:/data \
+  --restart unless-stopped \
   chromadb/chroma:latest
 ```
 
-Verify ChromaDB is running:
+**Option B: Install via pip**
 
 ```bash
-curl http://localhost:8000/api/v1/heartbeat
+pip install chromadb
+chroma run --host 0.0.0.0 --port 8000
+```
+
+Verify ChromaDB is running (note: ChromaDB 0.5+ uses v2 API):
+
+```bash
+curl http://localhost:8000/api/v2/heartbeat
 # Should return: {"nanosecond heartbeat": ...}
+
+# List collections (after indexing):
+curl http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections
 ```
 
 ### 5. Index Tour Data for Chatbot
@@ -400,11 +418,17 @@ Strapi auto-generates REST API endpoints for all content types:
 
 ### Custom Endpoints
 
-| Method | Endpoint                          | Auth     | Description              |
-| ------ | --------------------------------- | -------- | ------------------------ |
-| POST   | `/api/chatbot/query`              | Public   | Send message to chatbot  |
-| POST   | `/api/bookings/create-vnpay`      | Auth     | Create VNPay payment     |
-| GET    | `/api/bookings/vnpay-return`      | Public   | VNPay payment callback   |
+| Method | Endpoint                          | Auth          | Description                                                  |
+| ------ | --------------------------------- | ------------- | ------------------------------------------------------------ |
+| POST   | `/api/chatbot/query`              | Public (rate-limited: 15 req/min/IP) | Send message to chatbot           |
+| POST   | `/api/chatbot/reindex/trigger`    | Admin panel   | Kick off a background ChromaDB reindex                       |
+| GET    | `/api/chatbot/reindex/status`     | Admin panel   | Poll reindex status + log tail                               |
+| GET    | `/api/dashboard/overview`         | Admin panel   | KPIs, revenue series, top tours, recent + upcoming bookings  |
+| POST   | `/api/bookings/create-vnpay`      | Auth (user)   | Create VNPay payment                                         |
+| GET    | `/api/bookings/vnpay-return`      | Public        | VNPay payment callback                                       |
+| POST   | `/api/bookings/:id/cancel`        | Auth (user, owner) | Cancel booking + VNPay refund (policy: ≥7d full, 3-6d 50%, <3d none) |
+
+> Admin-panel endpoints are gated by the custom policy `src/policies/is-admin-panel.js`. It validates the admin session token, throws `UnauthorizedError` (401) on invalid/expired tokens so the admin fetch client can trigger its refresh loop, and returns `false` (403) only for blocked admin users.
 
 ### Chatbot Request/Response
 
@@ -507,6 +531,142 @@ All content types support locale variants. Use the migration script to set up in
 node migrate-strapi-locales.mjs
 ```
 
+> **i18n gotcha — non-localized relations on translated content**: When updating a non-vi locale (e.g. `zh`) of a content type whose `author` relation is non-localized, omit the relation from the PUT body. Otherwise Strapi will try to create a localized author that doesn't exist and error out.
+
+---
+
+## Admin Panel Customizations
+
+Two custom pages are injected into the Strapi admin panel via `src/admin/app.jsx`:
+
+### 1. Dashboard — `/admin/dashboard-tvb`
+
+An analytics view built on Recharts. Data is served by `GET /api/dashboard/overview` (file: `src/api/dashboard/controllers/dashboard.js`).
+
+**What it computes** (all via Knex raw queries on SQLite for speed):
+
+- **KPIs**: revenue MTD / all-time (Paid only), bookings MTD / all-time, conversion rate = Paid / (Paid + Failed + Cancelled), Average Order Value, seats MTD, upcoming departures (7 days), distinct active customers (≥1 Paid), refunds MTD (count + amount).
+- **Series**: revenue by day (last 30 days, zero-filled), booking status breakdown (pie), refund breakdown (pie), top 5 tours by booking count (grouped across locales via `tours.document_id`).
+- **Tables**: last 10 bookings, upcoming 7-day departures (Paid only) — each joined with the vi-locale tour name.
+
+The page uses Strapi's `useFetchClient` hook so admin access tokens refresh transparently on 401. It auto-polls every 60 seconds.
+
+### 2. Chatbot Sync — `/admin/chatbot-sync`
+
+Manual trigger for re-embedding tour content into ChromaDB (controller: `src/api/chatbot/controllers/reindex.js`). Shows live status + log tail, prevents concurrent runs via a pidfile at `/tmp/chatbot-reindex.lock`.
+
+> ⚠️ The reindex controller currently hard-codes the following paths — **edit these if deploying to a different location**:
+> - `LOG_FILE = '/srv/TuanSP/DACN_TourGuideWeb/index-tours-cron.log'`
+> - `SCRIPT   = '/srv/TuanSP/DACN_TourGuideWeb/index-tours-cron.sh'`
+
+### Custom Admin Policy
+
+`src/policies/is-admin-panel.js` — the gate used by the dashboard + reindex routes. It extracts the admin `Bearer` token, calls `strapi.sessionManager('admin').validateAccessToken()`, checks `isSessionActive(sessionId)`, and loads the admin user. On any failure other than "user is blocked" it **throws `UnauthorizedError`** (not returns false), so the admin fetch client on the frontend treats it as a token-refresh opportunity instead of a hard 403.
+
+---
+
+## Production Deployment
+
+This section documents the exact production setup used for the reference deployment (Hostinger VPS, shared with other apps). Adapt ports and paths to your environment.
+
+### 1. Choose ports that don't collide with other services
+
+The reference deployment uses these non-standard ports (set in `Travel_TVB_Server/.env` for Strapi, hard-coded in `webhook.js` for the CD listener, and in the Docker `-p` flag for ChromaDB):
+
+| Service          | Port    | Configured in                                 |
+| ---------------- | ------- | --------------------------------------------- |
+| Strapi backend   | `17234` | `Travel_TVB_Server/.env` → `PORT=17234`       |
+| Vite preview     | `23841` | `Travel_TVB/package.json` → preview `--port`  |
+| Webhook listener | `31270` | `webhook.js` → `const PORT = 31270`           |
+| ChromaDB (Docker)| `42839` (external) → `8000` (container) | Docker `-p` flag |
+
+Pick any free ports on your host; update each config accordingly.
+
+### 2. Process manager (PM2)
+
+Three long-running processes are managed by PM2 via `ecosystem.config.cjs`:
+
+```js
+apps: [
+  { name: 'tourguide-strapi',   cwd: './Travel_TVB_Server', script: 'npm',  args: 'run start' },
+  { name: 'tourguide-frontend', cwd: './Travel_TVB',        script: 'npx',  args: 'vite preview' },
+  { name: 'tourguide-cd',       script: './webhook.js' },
+]
+```
+
+Boot them with:
+
+```bash
+cd /srv/YourPath/DACN_TourGuideWeb
+npm install --prefix Travel_TVB_Server
+npm install --prefix Travel_TVB
+npm run build --prefix Travel_TVB_Server   # admin panel build
+npm run build --prefix Travel_TVB          # frontend dist/
+
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup                                 # generate systemd unit for auto-start
+```
+
+### 3. ChromaDB (Docker)
+
+```bash
+docker run -d --name chromadb-tourguide \
+  -p 42839:8000 \
+  -v chromadb_tourguide_data:/data \
+  --restart unless-stopped \
+  chromadb/chroma:latest
+```
+
+Then set `CHROMADB_URL=http://localhost:42839` in `Travel_TVB_Server/.env`.
+
+### 4. Seed the vector database
+
+After Strapi is running and tours are published:
+
+```bash
+cd Travel_TVB_Server
+node src/api/chatbot/scripts/indexTours.js
+```
+
+### 5. Continuous deployment via GitHub webhook
+
+The CD pipeline is a small Node HTTP server (`webhook.js`) that validates GitHub's `X-Hub-Signature-256` header and, on a push to `main`, runs `deploy.sh`. `deploy.sh` does:
+
+1. Acquires `/tmp/tourguide-deploy.lock` (skips if a deploy is in-flight).
+2. `git update-index --skip-worktree` on `.tmp/data.db` and `public/uploads/` so the next `git reset --hard` **will not** touch live data.
+3. `git pull --rebase`, `npm ci`, builds, `pm2 restart tourguide-strapi tourguide-frontend`.
+
+**GitHub setup**:
+
+1. In GitHub repo **Settings → Webhooks → Add webhook**.
+2. Payload URL: `http://your-host:31270/webhook`
+3. Content type: `application/json`
+4. Secret: generate with `openssl rand -hex 32` and put the same value into `webhook.js` → `const SECRET`.
+5. Events: "Just the `push` event".
+
+> `deploy.sh`, `webhook.js`, and `ecosystem.config.cjs` are **gitignored** on purpose — they contain absolute paths and the webhook secret, so each deployment author writes their own. Use the snippets above as templates.
+
+### 6. Scheduled reindexing (optional)
+
+To keep the chatbot current with CMS edits, schedule `index-tours-cron.sh` via cron. Example (twice daily):
+
+```cron
+0 3,15 * * * /srv/YourPath/DACN_TourGuideWeb/index-tours-cron.sh >> /srv/YourPath/DACN_TourGuideWeb/index-tours-cron.log 2>&1
+```
+
+The script should call `node src/api/chatbot/scripts/indexTours.js` and then `pm2 restart tourguide-strapi` so the vectorStore client reconnects to the freshly repopulated collection.
+
+### 7. Reverse proxy (recommended)
+
+In production you'll typically put Nginx/Caddy in front of the three PM2 apps:
+
+- `yourdomain.com/` → `http://localhost:23841` (frontend)
+- `yourdomain.com/api` and `/admin` → `http://localhost:17234` (Strapi)
+- Webhook path should be a separate subdomain or unguessable route pointed at port `31270`.
+
+Set `FRONTEND_URL`, `VNPAY_RETURN_URL`, and CORS origins in `Travel_TVB_Server/config/middlewares.js` to match the public URL.
+
 ---
 
 ## Testing
@@ -575,6 +735,12 @@ GitHub Actions is configured in `.github/workflows/ci.yml`. The pipeline runs on
 - Check that ChromaDB is running and accessible
 - Make sure you've run the indexing script: `node src/api/chatbot/scripts/indexTours.js`
 - Check Strapi logs for detailed error messages
+- **503 "This model is currently experiencing high demand"** from Google: we use the `gemini-flash-latest` alias precisely because individual versioned models (e.g. `gemini-2.5-flash`) sometimes return 503 on spikes. If that alias itself fails, try swapping `LLM_MODEL` in `src/api/chatbot/services/chatbot.js` to `gemini-2.0-flash`.
+- **Harmless warning** `Cannot instantiate a collection with the DefaultEmbeddingFunction` — safe to ignore. ChromaDB's JS client v3 warns when no local embedding function is installed, but our code supplies `queryEmbeddings` explicitly on every search/upsert, so default-embed is never actually used.
+
+### Admin dashboard: intermittent "HTTP 403 PolicyError"
+
+- Happens when admin access tokens rotate between the dashboard's 60-second polls. The custom `is-admin-panel` policy throws `UnauthorizedError` (401) on invalid/expired tokens so the admin fetch client can transparently refresh. Admin pages must use `useFetchClient` from `@strapi/strapi/admin` (not raw `fetch`) for the refresh loop to fire.
 
 ### Frontend can't connect to backend
 

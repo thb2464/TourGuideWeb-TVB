@@ -10,7 +10,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const vectorStore = require('./vectorStore');
 
-const LLM_MODEL = 'gemini-2.5-flash';
+const LLM_MODEL = 'gemini-flash-latest';
 
 let genAI = null;
 

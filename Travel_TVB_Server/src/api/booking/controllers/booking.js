@@ -375,16 +375,19 @@ module.exports = createCoreController('api::booking.booking', ({ strapi }) => ({
       return ctx.badRequest('Cannot cancel a booking with a past travel date.');
     }
 
-    // Time-based refund policy
+    // Refund policy based on days until travel_date
     const now = new Date();
-    const bookingDate = new Date(booking.booking_date);
-    const hoursSinceBooking = (now - bookingDate) / (1000 * 60 * 60);
+    const todayStr = now.toISOString().split('T')[0];
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysUntilTravel = Math.floor(
+      (new Date(booking.travel_date).getTime() - new Date(todayStr).getTime()) / msPerDay
+    );
 
     let refundPercentage = 0;
-    if (hoursSinceBooking <= 24) {
+    if (daysUntilTravel >= 7) {
       refundPercentage = 100;
-    } else if (hoursSinceBooking <= 72) {
-      refundPercentage = 85;
+    } else if (daysUntilTravel >= 3) {
+      refundPercentage = 50;
     } else {
       refundPercentage = 0;
     }
@@ -460,7 +463,7 @@ module.exports = createCoreController('api::booking.booking', ({ strapi }) => ({
       vnp_Version: '2.1.0',
       vnp_Command: 'refund',
       vnp_TmnCode: tmnCode,
-      vnp_TransactionType: '02', // 02 = full refund, 03 = partial refund
+      vnp_TransactionType: refundAmount >= booking.total_price ? '02' : '03', // 02 = full refund, 03 = partial refund
       vnp_TxnRef: txnRef,
       vnp_Amount: refundAmount * 100, // VNPay requires amount x 100
       vnp_TransactionNo: transactionNo,
